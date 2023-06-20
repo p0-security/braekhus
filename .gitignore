@@ -1,0 +1,12 @@
+# Node.js
+node_modules/
+dist/
+.npmrc
+
+# yarn
+.yarn
+.yarnrc
+yarn-error.log
+
+# Mac
+.DS_Store
