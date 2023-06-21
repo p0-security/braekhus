@@ -1,6 +1,9 @@
+import express, { Express } from "express";
+import { IncomingMessage, Server, ServerResponse } from "http";
 import { JSONRPCClient, JSONRPCServer, JSONRPCServerAndClient } from "json-rpc-2.0";
 import { randomUUID } from "node:crypto";
-import { WebSocketServer } from "ws";
+import { Duplex } from "node:stream";
+import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 /**
  * Bi-directional JSON RPC server
@@ -10,9 +13,10 @@ export class JsonRpcServer {
   #serverSocket: WebSocketServer;
   #connections: Map<string, JSONRPCServerAndClient<void, void>> = new Map();
 
-  constructor(port: number) {
-    this.#serverSocket = new WebSocketServer({ port });
+  constructor(options: ServerOptions<typeof WebSocket, typeof IncomingMessage>) {
+    this.#serverSocket = new WebSocketServer(options);
     this.#serverSocket.on("connection", (ws) => {
+      console.log(typeof ws);
       const id = randomUUID();
 
       const jsonRpcServer = new JSONRPCServerAndClient(
@@ -53,11 +57,43 @@ export class JsonRpcServer {
     setInterval(() => this.callClients(), 3000);
   }
 
+  getWebSocketServer(): WebSocketServer {
+    return this.#serverSocket;
+  }
+
+  handleUpgrade(request: InstanceType<typeof IncomingMessage>, socket: Duplex, head: Buffer) {
+    this.#serverSocket.handleUpgrade(request, socket, head, socket => {
+      this.#serverSocket.emit("connection", socket, request);
+    });
+  }
+
   private callClients() {
     console.log("callClients called");
     for (const [id, server] of this.#connections.entries()) {
       console.log("calling client", id);
       server.request("sum", {x: 1, y: 2}).then(response => console.log("server response", response));
     }
+  }
+}
+
+export class JsonRpcApp {
+
+  #app: Express;
+  #httpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
+  #rpcServer: JsonRpcServer;
+
+  constructor(port: number) {
+    this.#app = express();
+    this.#rpcServer = new JsonRpcServer({ noServer: true });
+
+    this.#app.get("/live", ((_req, res) => {
+      console.log("live");
+      return res.status(200).json({ message: "OK" });
+    }));
+    this.#httpServer = this.#app.listen(port, () => {
+      console.log(`JSON RPC service listening on port ${port}`);
+    });
+
+    this.#httpServer.on("upgrade", (request, socket, head) => this.#rpcServer.handleUpgrade(request, socket, head));
   }
 }

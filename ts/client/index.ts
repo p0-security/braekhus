@@ -9,7 +9,7 @@ export class JsonRpcClient {
   #clientSocket: WebSocket;
   
   constructor(host: string, port: number) {
-    this.#clientSocket = new WebSocket(`ws://${host}:${port}`);
+    this.#clientSocket = new WebSocket(`wss://${host}:${port}`);
     const jsonRpcClient = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient(request => {

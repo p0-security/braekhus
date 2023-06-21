@@ -2,7 +2,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { JsonRpcClient } from "../client";
-import { JsonRpcServer } from "../server";
+import { JsonRpcApp, JsonRpcServer } from "../server";
 
 
 void yargs(hideBin(process.argv))
@@ -18,7 +18,7 @@ void yargs(hideBin(process.argv))
         }),
     (args) => {
       const { port } = args;
-      new JsonRpcServer(port);
+      new JsonRpcApp(port);
     }
   )
   .command(
