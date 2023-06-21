@@ -1,6 +1,10 @@
 import express, { Express } from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
-import { JSONRPCClient, JSONRPCServer, JSONRPCServerAndClient } from "json-rpc-2.0";
+import {
+  JSONRPCClient,
+  JSONRPCServer,
+  JSONRPCServerAndClient,
+} from "json-rpc-2.0";
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
@@ -9,11 +13,12 @@ import { ServerOptions, WebSocket, WebSocketServer } from "ws";
  * Bi-directional JSON RPC server
  */
 export class JsonRpcServer {
-
   #serverSocket: WebSocketServer;
   #connections: Map<string, JSONRPCServerAndClient<void, void>> = new Map();
 
-  constructor(options: ServerOptions<typeof WebSocket, typeof IncomingMessage>) {
+  constructor(
+    options: ServerOptions<typeof WebSocket, typeof IncomingMessage>
+  ) {
     this.#serverSocket = new WebSocketServer(options);
     this.#serverSocket.on("connection", (ws) => {
       console.log(typeof ws);
@@ -21,14 +26,14 @@ export class JsonRpcServer {
 
       const jsonRpcServer = new JSONRPCServerAndClient(
         new JSONRPCServer(),
-        new JSONRPCClient(request => {
+        new JSONRPCClient((request) => {
           try {
             ws.send(JSON.stringify(request));
             return Promise.resolve();
           } catch (error) {
             return Promise.reject(error);
           }
-        }),
+        })
       );
 
       jsonRpcServer.addMethod("echo", ({ text }) => ({ text }));
@@ -50,7 +55,7 @@ export class JsonRpcServer {
 
       this.#connections.set(id, jsonRpcServer);
     });
-    
+
     this.#serverSocket.on("error", console.error);
     this.#serverSocket.on("close", () => {});
 
@@ -61,23 +66,27 @@ export class JsonRpcServer {
     return this.#serverSocket;
   }
 
-  handleUpgrade(request: InstanceType<typeof IncomingMessage>, socket: Duplex, head: Buffer) {
-    this.#serverSocket.handleUpgrade(request, socket, head, socket => {
+  handleUpgrade(
+    request: InstanceType<typeof IncomingMessage>,
+    socket: Duplex,
+    head: Buffer
+  ) {
+    this.#serverSocket.handleUpgrade(request, socket, head, (socket) => {
       this.#serverSocket.emit("connection", socket, request);
     });
   }
 
   private callClients() {
-    console.log("callClients called");
     for (const [id, server] of this.#connections.entries()) {
       console.log("calling client", id);
-      server.request("sum", {x: 1, y: 2}).then(response => console.log("server response", response));
+      server
+        .request("sum", { x: 1, y: 2 })
+        .then((response) => console.log("server response", response));
     }
   }
 }
 
 export class JsonRpcApp {
-
   #app: Express;
   #httpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
   #rpcServer: JsonRpcServer;
@@ -86,14 +95,16 @@ export class JsonRpcApp {
     this.#app = express();
     this.#rpcServer = new JsonRpcServer({ noServer: true });
 
-    this.#app.get("/live", ((_req, res) => {
+    this.#app.get("/live", (_req, res) => {
       console.log("live");
       return res.status(200).json({ message: "OK" });
-    }));
+    });
     this.#httpServer = this.#app.listen(port, () => {
       console.log(`JSON RPC service listening on port ${port}`);
     });
 
-    this.#httpServer.on("upgrade", (request, socket, head) => this.#rpcServer.handleUpgrade(request, socket, head));
+    this.#httpServer.on("upgrade", (request, socket, head) =>
+      this.#rpcServer.handleUpgrade(request, socket, head)
+    );
   }
 }
