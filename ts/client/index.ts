@@ -1,3 +1,5 @@
+import { deferral } from "./deferral";
+import { jwt } from "./jwks";
 import {
   JSONRPCClient,
   JSONRPCServer,
@@ -9,17 +11,25 @@ import WebSocket from "ws";
  * Bi-directional JSON RPC client
  */
 export class JsonRpcClient {
-  #clientSocket: WebSocket;
+  #jsonRpcClient = deferral<JSONRPCServerAndClient>();
+  #url: string;
 
   constructor(host: string, port: number, options: { insecure?: boolean }) {
-    this.#clientSocket = new WebSocket(
-      `ws${!options.insecure ? "s" : ""}://${host}:${port}`
-    );
+    this.#url = `ws${!options.insecure ? "s" : ""}://${host}:${port}`;
+    this.#jsonRpcClient.completeWith(this.create());
+    this.#jsonRpcClient.promise.catch((error: any) => console.error(error));
+  }
+
+  async create() {
+    const token = await jwt();
+    const clientSocket = new WebSocket(this.#url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const jsonRpcClient = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient((request) => {
         try {
-          this.#clientSocket.send(JSON.stringify(request));
+          clientSocket.send(JSON.stringify(request));
           return Promise.resolve();
         } catch (error) {
           return Promise.reject(error);
@@ -27,15 +37,15 @@ export class JsonRpcClient {
       })
     );
 
-    this.#clientSocket.on("error", console.error);
+    clientSocket.on("error", console.error);
 
-    this.#clientSocket.on("open", () => {
+    clientSocket.on("open", () => {
       jsonRpcClient
         .request("echo", { text: "Hello, World!" })
         .then((response) => console.log("client received", response));
     });
 
-    this.#clientSocket.on("message", (data, isBinary) => {
+    clientSocket.on("message", (data, isBinary) => {
       if (isBinary) {
         console.error("Unexpected binary data");
         return;
@@ -44,7 +54,12 @@ export class JsonRpcClient {
       jsonRpcClient.receiveAndSend(JSON.parse(message));
     });
 
-    jsonRpcClient.addMethod("sum", ({ x, y }) => {
+    return jsonRpcClient;
+  }
+
+  async run() {
+    const client = await this.#jsonRpcClient.promise;
+    client.addMethod("sum", ({ x, y }) => {
       console.log("sum method called");
       return { result: x + y };
     });

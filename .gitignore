@@ -10,3 +10,6 @@ yarn-error.log
 
 # Mac
 .DS_Store
+
+# Generated files
+jwk.*.json

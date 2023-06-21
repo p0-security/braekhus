@@ -38,9 +38,11 @@ void yargs(hideBin(process.argv))
           alias: "k",
           describe: "If true, skips SSL",
         }),
-    (args) => {
+    async (args) => {
       const { host, port } = args;
-      new JsonRpcClient(host, port, args);
+      const client = new JsonRpcClient(host, port, args);
+      console.log("RUN");
+      await client.run();
     }
   )
   .demandCommand(1)

@@ -1,3 +1,5 @@
+import { validateAuth } from "./auth";
+import { httpError } from "./util";
 import express, { Express } from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
 import {
@@ -103,8 +105,17 @@ export class JsonRpcApp {
       console.log(`JSON RPC service listening on port ${port}`);
     });
 
-    this.#httpServer.on("upgrade", (request, socket, head) =>
-      this.#rpcServer.handleUpgrade(request, socket, head)
-    );
+    this.#httpServer.on("upgrade", (request, socket, head) => {
+      (async () => {
+        await validateAuth(request.headers.authorization);
+        this.#rpcServer.handleUpgrade(request, socket, head);
+      })().catch((error: any) => {
+        const body = JSON.stringify({ error }, undefined, 2);
+        const code = error.code ?? 500;
+        const reason = error.reason ?? "Internal Server Error";
+        socket.write(httpError(code, reason, body));
+        socket.destroy();
+      });
+    });
   }
 }
