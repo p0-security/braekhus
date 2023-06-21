@@ -1,21 +1,18 @@
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
-
 import { JsonRpcClient } from "../client";
 import { JsonRpcApp, JsonRpcServer } from "../server";
-
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 
 void yargs(hideBin(process.argv))
   .command(
     "server <port>",
     "Start server",
     (yargs) =>
-      yargs
-        .positional("port", {
-          type: "number",
-          demandOption: true,
-          describe: "The port where the server should listen for new connections",
-        }),
+      yargs.positional("port", {
+        type: "number",
+        demandOption: true,
+        describe: "The port where the server should listen for new connections",
+      }),
     (args) => {
       const { port } = args;
       new JsonRpcApp(port);
@@ -35,10 +32,17 @@ void yargs(hideBin(process.argv))
           type: "number",
           demandOption: true,
           describe: "The port to connect to",
+        })
+        .option("insecure", {
+          type: "boolean",
+          alias: "k",
+          describe: "If true, skips SSL",
         }),
-    (args) => {
+    async (args) => {
       const { host, port } = args;
-      new JsonRpcClient(host, port);
+      const client = new JsonRpcClient(host, port, args);
+      console.log("RUN");
+      await client.run();
     }
   )
   .demandCommand(1)
