@@ -1,0 +1,43 @@
+# This manifest parameterizes the p0 host that the client will connect to. Apply this manifest using:
+# P0_HOST=<your host> envsubst < manifest.yaml | kubectl apply -f -
+
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: p0-security
+  labels:
+    name: p0-security
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-diver-deployment
+  namespace: p0-security
+  labels:
+    app: kube-diver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-diver
+  template:
+    metadata:
+      labels:
+        app: kube-diver
+    spec:
+      containers:
+      - name: kube-diver
+        image: 391052057035.dkr.ecr.us-west-2.amazonaws.com/p0/kube-diver:latest
+        args: 
+        - "start:prod:client"
+        - "$P0_HOST"
+        - "443"
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "0.5"
+            memory: "500Mi"
