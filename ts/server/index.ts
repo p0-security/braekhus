@@ -10,6 +10,8 @@ import {
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
+import audit from "pino-http";
+import pinoLogger, { Logger } from "pino";
 
 /**
  * Bi-directional JSON RPC server
@@ -92,15 +94,16 @@ export class JsonRpcApp {
   #app: Express;
   #httpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
   #rpcServer: JsonRpcServer;
+  #logger: Logger;
 
   constructor(port: number) {
     this.#app = express();
     this.#rpcServer = new JsonRpcServer({ noServer: true });
+    this.#logger = pinoLogger({ name: "api.router" });
 
-    this.#app.get("/live", (_req, res) => {
-      console.log("live");
-      return res.status(200).json({ message: "OK" });
-    });
+    this.configureMiddleware();
+    this.configureRoutes();
+
     this.#httpServer = this.#app.listen(port, () => {
       console.log(`JSON RPC service listening on port ${port}`);
     });
@@ -116,6 +119,21 @@ export class JsonRpcApp {
         socket.write(httpError(code, reason, body));
         socket.destroy();
       });
+    });
+  }
+
+  private configureMiddleware() {
+    // Log all requests
+    this.#app.use(
+      audit({
+        logger: this.#logger
+      })
+    );
+  }
+
+  private configureRoutes() {
+    this.#app.get("/live", (_req, res) => {
+      return res.status(200).json({ message: "OK" });
     });
   }
 }
