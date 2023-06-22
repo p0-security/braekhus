@@ -1,0 +1,6 @@
+{
+  "hadolintPath": "hadolint",
+  "cliOptions": ["--no-color", "--ignore", "DL3000"],
+  "maxNumberOfProblems": 100,
+  "outputLevel": "warning"
+}
