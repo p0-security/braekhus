@@ -1,12 +1,14 @@
+import { K8sClient } from "../k8s/client";
+import { Create, Delete, Patch, Read, Replace } from "../types";
 import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
+import { V1ConfigMap, V1Role, V1RoleBinding } from "@kubernetes/client-node";
 import {
   JSONRPCClient,
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import pinoLogger, { Logger } from "pino";
-import { Permission } from "types";
 import WebSocket from "ws";
 
 /**
@@ -43,7 +45,7 @@ export class JsonRpcClient {
       })
     );
 
-    clientSocket.on("error", this.#logger.error);
+    clientSocket.on("error", (err) => this.#logger.error(err));
 
     clientSocket.on("open", () => {
       // After opening a connection, send the cluster ID to the server
@@ -71,15 +73,49 @@ export class JsonRpcClient {
     client.addMethod("live", ({}) => {
       return { ok: true };
     });
-    client.addMethod("grant", (permission: Permission) => {
-      // TODO: Grant permission in Kubernetes cluster that this client is connected to
-      this.#logger.info({ permission }, "grant");
-      return { ok: true };
+
+    const k8s = new K8sClient();
+    // Role
+    client.addMethod("readRole", async (request: Read) => {
+      return await k8s.readRole(request);
     });
-    client.addMethod("revoke", (permission: Permission) => {
-      // TODO: Revoke permission in Kubernetes cluster that this client is connected to
-      this.#logger.info({ permission }, "revoke");
-      return { ok: true };
+    client.addMethod("createRole", async (request: Create<V1Role>) => {
+      return await k8s.createRole(request);
+    });
+    client.addMethod("deleteRole", async (request: Delete) => {
+      return await k8s.deleteRole(request);
+    });
+    // RoleBinding
+    client.addMethod("readRoleBinding", async (request: Read) => {
+      return await k8s.readRoleBinding(request);
+    });
+    client.addMethod(
+      "createRoleBinding",
+      async (request: Create<V1RoleBinding>) => {
+        return await k8s.createRoleBinding(request);
+      }
+    );
+    client.addMethod("deleteRoleBinding", async (request: Delete) => {
+      return await k8s.deleteRoleBinding(request);
+    });
+    // ConfigMap
+    client.addMethod(
+      "createConfigMap",
+      async (request: Create<V1ConfigMap>) => {
+        return await k8s.createConfigMap(request);
+      }
+    );
+    client.addMethod(
+      "replaceConfigMap",
+      async (request: Replace<V1ConfigMap>) => {
+        return await k8s.replaceConfigMap(request);
+      }
+    );
+    client.addMethod("patchConfigMap", async (request: Patch<V1ConfigMap>) => {
+      return await k8s.patchConfigMap(request);
+    });
+    client.addMethod("deleteConfigMap", async (request: Delete) => {
+      return await k8s.deleteConfigMap(request);
     });
   }
 }

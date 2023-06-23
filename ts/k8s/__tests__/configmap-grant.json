@@ -1,0 +1,11 @@
+{
+  "apiVersion": "v1",
+  "data": {
+    "mapRoles": "- groups:\n  - system:bootstrappers\n  - system:nodes\n  rolearn: arn:aws:iam::391052057035:role/AmazonEKSNodeRole\n  username: system:node:{{EC2PrivateDNSName}}\n- groups:\n  - system:masters\n  rolearn: arn:aws:iam::391052057035:role/EKSMasterRole\n  username: EKSMasterRole\n",
+    "mapUsers": "- userarn: arn:aws:iam::391052057035:user/gergely.danyi@p0.dev\n  username: gergely.danyi@p0.dev\n"
+  },
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "aws-auth"
+  }
+}

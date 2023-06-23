@@ -1,6 +1,6 @@
 import { JsonRpcClient } from "../client";
 import { JsonRpcApp } from "../server";
-import { httpBridgeApp } from "../server/bridge";
+import { k8sProxy } from "../server/proxy";
 import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -28,9 +28,9 @@ void yargs(hideBin(process.argv))
     (args) => {
       const { rpcPort, bridgePort } = args;
       const jsonRpcApp = new JsonRpcApp(rpcPort);
-      const app = httpBridgeApp(jsonRpcApp.getRpcServer());
-      app.listen(bridgePort, () => {
-        logger.info(`HTTP Bridge app listening on port ${bridgePort}`);
+      const proxyApp = k8sProxy(jsonRpcApp.getRpcServer());
+      proxyApp.listen(bridgePort, () => {
+        logger.info(`Kubernetes HTTP proxy listening on port ${bridgePort}`);
       });
     }
   )

@@ -172,15 +172,12 @@ export class PermissionerRpcServer extends JsonRpcServer {
     this.removeChannel(channelId);
   }
 
-  async callClusters(method: string, request: any, ...clusterIds: ClusterId[]) {
-    const promises = clusterIds.map((clusterId) => {
-      const channelId = this.#channelIds.get(clusterId);
-      if (!channelId) {
-        return Promise.reject(new Error(`Cluster not found: ${clusterId}`));
-      }
-      return this.call(channelId, method, request);
-    });
-    return await Promise.allSettled(promises);
+  async callCluster(method: string, request: any, clusterId: ClusterId) {
+    const channelId = this.#channelIds.get(clusterId);
+    if (!channelId) {
+      return Promise.reject(new Error(`Cluster not found: ${clusterId}`));
+    }
+    return this.call(channelId, method, request);
   }
 }
 
