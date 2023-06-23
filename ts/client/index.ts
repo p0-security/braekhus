@@ -43,7 +43,7 @@ export class JsonRpcClient {
       })
     );
 
-    clientSocket.on("error", this.#logger.error);
+    clientSocket.on("error", (err) => this.#logger.error(err));
 
     clientSocket.on("open", () => {
       // After opening a connection, send the cluster ID to the server
