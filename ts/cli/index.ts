@@ -1,8 +1,11 @@
 import { JsonRpcClient } from "../client";
 import { JsonRpcApp } from "../server";
 import { httpBridgeApp } from "../server/bridge";
+import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+
+const logger = pinoLogger({ name: "cli" });
 
 void yargs(hideBin(process.argv))
   .command(
@@ -27,7 +30,7 @@ void yargs(hideBin(process.argv))
       const jsonRpcApp = new JsonRpcApp(rpcPort);
       const app = httpBridgeApp(jsonRpcApp.getRpcServer());
       app.listen(bridgePort, () => {
-        console.log(`HTTP Bridge app listening on port ${bridgePort}`);
+        logger.info(`HTTP Bridge app listening on port ${bridgePort}`);
       });
     }
   )
@@ -54,7 +57,7 @@ void yargs(hideBin(process.argv))
     async (args) => {
       const { host, port } = args;
       const client = new JsonRpcClient(host, port, args);
-      console.log("RUN");
+      logger.info("RUN");
       await client.run();
     }
   )

@@ -1,8 +1,11 @@
 import * as jose from "jose";
 import * as fs from "node:fs/promises";
+import pinoLogger from "pino";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
+
+const logger = pinoLogger({ name: "auth" });
 
 export class AuthorizationError extends Error {
   constructor() {
@@ -34,15 +37,12 @@ export const validateAuth = async (authorization: string | undefined) => {
   if (!match || !match[1]) throw new AuthorizationError();
   const jwt = match[1];
   const key = await ensureKey();
-  if (!key) {
-    console.log("err");
-    throw new AuthorizationError();
-  }
+  if (!key) throw new AuthorizationError();
   const jwk = await jose.importJWK(key as any, ALG);
   try {
     await jose.jwtVerify(jwt, jwk);
   } catch (error: any) {
-    console.warn("Error during verification", error.message);
+    logger.warn("Error during verification", error.message);
     throw new AuthorizationError();
   }
 };

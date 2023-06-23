@@ -27,13 +27,14 @@ export class JsonRpcServer {
 
   constructor(
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
+    port: number,
     onChannelConnection: (
       channelId: ChannelId,
       channel: JSONRPCServerAndClient
     ) => void,
     onChannelClose: (channelId: ChannelId) => void
   ) {
-    this.#logger = pinoLogger({ name: "JsonRpcServer" });
+    this.#logger = pinoLogger({ name: "JsonRpcServer", port });
     this.#serverSocket = new WebSocketServer(options);
     this.#serverSocket.on("connection", (ws) => {
       const channelId = randomUUID();
@@ -60,7 +61,7 @@ export class JsonRpcServer {
         const message = data.toString("utf-8");
         channel.receiveAndSend(JSON.parse(message));
       });
-      ws.on("error", console.error);
+      ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
         onChannelClose(channelId);
         this.#channels.delete(channelId);
@@ -70,7 +71,7 @@ export class JsonRpcServer {
       this.#channels.set(channelId, channel);
     });
 
-    this.#serverSocket.on("error", console.error);
+    this.#serverSocket.on("error", (err) => this.#logger.error(err));
     this.#serverSocket.on("close", () => {});
 
     setInterval(() => this.healthCheck(), 3000);
@@ -132,15 +133,19 @@ export class PermissionerRpcServer extends JsonRpcServer {
   #channelIds: Map<ClusterId, ChannelId> = new Map();
   // When a new clusterId is set we have to find if there is an existing mapping for that channelId using this reverse mapping
   #clusterIds: Map<ChannelId, ClusterId> = new Map();
+  #logger: Logger;
 
   constructor(
-    options: ServerOptions<typeof WebSocket, typeof IncomingMessage>
+    options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
+    port: number
   ) {
     super(
       options,
+      port,
       (channelId, channel) => this.onChannelConnection(channelId, channel),
       (channelId) => this.onChannelClose(channelId)
     );
+    this.#logger = pinoLogger({ name: "PermissionerRpcServer", port });
   }
 
   private removeChannel(channelId: ChannelId) {
@@ -153,7 +158,7 @@ export class PermissionerRpcServer extends JsonRpcServer {
 
   onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
     channel.addMethod("setClusterId", ({ clusterId }) => {
-      console.log({ clusterId }, "Setting cluster ID");
+      this.#logger.info({ channelId, clusterId }, "Setting cluster ID");
       // Remove existing mapping
       this.removeChannel(channelId);
       // Add new mapping
@@ -187,14 +192,14 @@ export class JsonRpcApp {
 
   constructor(port: number) {
     this.#app = express();
-    this.#rpcServer = new PermissionerRpcServer({ noServer: true });
+    this.#rpcServer = new PermissionerRpcServer({ noServer: true }, port);
     this.#logger = pinoLogger({ name: "JsonRpcApp", port });
 
     this.middleware();
     this.routes();
 
     this.#httpServer = this.#app.listen(port, () => {
-      console.log(`JSON RPC service listening on port ${port}`);
+      this.#logger.info(`JSON RPC service listening on port ${port}`);
     });
 
     this.#httpServer.on("upgrade", (request, socket, head) => {

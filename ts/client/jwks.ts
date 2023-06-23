@@ -1,9 +1,12 @@
 import * as jose from "jose";
 import * as fs from "node:fs/promises";
+import pinoLogger from "pino";
 
 const KEY_FILE = "jwk.private.json";
 const PUB_FILE = "jwk.public.json";
 const ALG = "ES384"; // Elliptic curve with 384-bit SHA
+
+const logger = pinoLogger({ name: "jwks" });
 
 const loadKey = async () => {
   try {
@@ -11,7 +14,7 @@ const loadKey = async () => {
     const key = jose.importJWK(JSON.parse(data));
     return key;
   } catch (error: any) {
-    console.warn(error);
+    logger.warn(error);
     return undefined;
   }
 };
