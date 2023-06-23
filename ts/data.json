@@ -1,0 +1,16 @@
+{
+  "clusterIds": ["myClusterId"],
+  "permission": {
+    "name": "GeneratedRole-1",
+    "principal": "gergely.danyi@p0.dev",
+    "kind": "Role",
+    "namespace": "p0-security",
+    "rules": [
+      {
+        "apiGroups": [""],
+        "resources": ["pods"],
+        "verbs": ["get", "list", "watch"]
+      }
+    ]
+  }
+}

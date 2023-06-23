@@ -34,7 +34,10 @@ export const validateAuth = async (authorization: string | undefined) => {
   if (!match || !match[1]) throw new AuthorizationError();
   const jwt = match[1];
   const key = await ensureKey();
-  if (!key) throw new AuthorizationError();
+  if (!key) {
+    console.log("err");
+    throw new AuthorizationError();
+  }
   const jwk = await jose.importJWK(key as any, ALG);
   try {
     await jose.jwtVerify(jwt, jwk);

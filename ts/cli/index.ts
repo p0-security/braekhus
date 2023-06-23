@@ -1,21 +1,34 @@
 import { JsonRpcClient } from "../client";
-import { JsonRpcApp, JsonRpcServer } from "../server";
+import { JsonRpcApp } from "../server";
+import { httpBridgeApp } from "../server/bridge";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 void yargs(hideBin(process.argv))
   .command(
-    "server <port>",
+    "server <rpcPort> <bridgePort>",
     "Start server",
     (yargs) =>
-      yargs.positional("port", {
-        type: "number",
-        demandOption: true,
-        describe: "The port where the server should listen for new connections",
-      }),
+      yargs
+        .positional("rpcPort", {
+          type: "number",
+          demandOption: true,
+          describe:
+            "The port where the server should listen for new RPC connections",
+        })
+        .positional("bridgePort", {
+          type: "number",
+          demandOption: true,
+          describe:
+            "The port where the server should listen for permission requests",
+        }),
     (args) => {
-      const { port } = args;
-      new JsonRpcApp(port);
+      const { rpcPort, bridgePort } = args;
+      const jsonRpcApp = new JsonRpcApp(rpcPort);
+      const app = httpBridgeApp(jsonRpcApp.getRpcServer());
+      app.listen(bridgePort, () => {
+        console.log(`HTTP Bridge app listening on port ${bridgePort}`);
+      });
     }
   )
   .command(

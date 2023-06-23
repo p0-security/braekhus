@@ -1,10 +1,12 @@
-import { deferral } from "./deferral";
+import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
 import {
   JSONRPCClient,
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
+import pinoLogger, { Logger } from "pino";
+import { Permission } from "types";
 import WebSocket from "ws";
 
 /**
@@ -13,11 +15,15 @@ import WebSocket from "ws";
 export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
   #url: string;
+  #logger: Logger;
 
   constructor(host: string, port: number, options: { insecure?: boolean }) {
+    this.#logger = pinoLogger({ name: "JsonRpcClient" });
     this.#url = `ws${!options.insecure ? "s" : ""}://${host}:${port}`;
     this.#jsonRpcClient.completeWith(this.create());
-    this.#jsonRpcClient.promise.catch((error: any) => console.error(error));
+    this.#jsonRpcClient.promise.catch((error: any) =>
+      this.#logger.error({ error }, "Error creating JSON RPC client")
+    );
   }
 
   async create() {
@@ -37,17 +43,20 @@ export class JsonRpcClient {
       })
     );
 
-    clientSocket.on("error", console.error);
+    clientSocket.on("error", this.#logger.error);
 
     clientSocket.on("open", () => {
+      // After opening a connection, send the cluster ID to the server
       jsonRpcClient
-        .request("echo", { text: "Hello, World!" })
-        .then((response) => console.log("client received", response));
+        .request("setClusterId", { clusterId: "myClusterId" })
+        .then((response) =>
+          this.#logger.info({ response }, "setClusterId response")
+        );
     });
 
     clientSocket.on("message", (data, isBinary) => {
       if (isBinary) {
-        console.error("Unexpected binary data");
+        this.#logger.warn("Message in binary format is not supported");
         return;
       }
       const message = data.toString("utf-8");
@@ -59,9 +68,18 @@ export class JsonRpcClient {
 
   async run() {
     const client = await this.#jsonRpcClient.promise;
-    client.addMethod("sum", ({ x, y }) => {
-      console.log("sum method called");
-      return { result: x + y };
+    client.addMethod("live", ({}) => {
+      return { ok: true };
+    });
+    client.addMethod("grant", (permission: Permission) => {
+      // TODO: Grant permission in Kubernetes cluster that this client is connected to
+      this.#logger.info({ permission }, "grant");
+      return { ok: true };
+    });
+    client.addMethod("revoke", (permission: Permission) => {
+      // TODO: Revoke permission in Kubernetes cluster that this client is connected to
+      this.#logger.info({ permission }, "revoke");
+      return { ok: true };
     });
   }
 }
