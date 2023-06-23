@@ -1,4 +1,3 @@
-import { K8sClient } from "../client";
 import axios from "axios";
 import * as fs from "node:fs/promises";
 
