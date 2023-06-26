@@ -1,25 +1,26 @@
-export type Rule = {
-  apiGroups: string[];
-  resources: string[];
-  verbs: string[];
+import { Request } from "express";
+import core from "express-serve-static-core";
+import { IncomingHttpHeaders } from "node:http";
+
+export type IncomingRequest = Request<
+  core.ParamsDictionary,
+  any,
+  any,
+  core.Query,
+  Record<string, any>
+>;
+
+export type ForwardedRequest = {
+  headers: IncomingHttpHeaders;
+  method: string;
+  path: string;
+  params: qs.ParsedQs;
+  data: any;
 };
 
-export type Role = {
-  kind: "Role";
-  namespace: string;
-};
-
-export type ClusterRole = {
-  kind: "ClusterRole";
-};
-
-export type Permission = {
-  principal: string;
-  name: string; // Name of the Role/ClusterRole to be granted to the principal
-  rules?: Rule[]; // rules are optional: undefined means existing role, while if rules are specified it's a generated role
-} & (Role | ClusterRole);
-
-export type ClusterPermission = {
-  clusterIds: string[];
-  permission: Permission;
+export type ForwardedResponse = {
+  headers: Record<string, any>;
+  status: number;
+  statusText: string;
+  data: any;
 };

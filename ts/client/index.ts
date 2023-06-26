@@ -1,12 +1,14 @@
 import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
+import axios from "axios";
 import {
   JSONRPCClient,
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
+import path from "path";
 import pinoLogger, { Logger } from "pino";
-import { Permission } from "types";
+import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
 
 /**
@@ -14,12 +16,18 @@ import WebSocket from "ws";
  */
 export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
-  #url: string;
+  #webSocketUrl: string;
+  #targetUrl: string;
   #logger: Logger;
 
-  constructor(host: string, port: number, options: { insecure?: boolean }) {
+  constructor(
+    targetUrl: string,
+    tunnelConfig: { host: string; port: number; insecure?: boolean }
+  ) {
     this.#logger = pinoLogger({ name: "JsonRpcClient" });
-    this.#url = `ws${!options.insecure ? "s" : ""}://${host}:${port}`;
+    this.#targetUrl = targetUrl;
+    const { host, port, insecure } = tunnelConfig;
+    this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
     this.#jsonRpcClient.completeWith(this.create());
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
@@ -28,7 +36,7 @@ export class JsonRpcClient {
 
   async create() {
     const token = await jwt();
-    const clientSocket = new WebSocket(this.#url, {
+    const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const jsonRpcClient = new JSONRPCServerAndClient(
@@ -48,9 +56,9 @@ export class JsonRpcClient {
     clientSocket.on("open", () => {
       // After opening a connection, send the cluster ID to the server
       jsonRpcClient
-        .request("setClusterId", { clusterId: "myClusterId" })
+        .request("setClientId", { clusterId: "myClusterId" })
         .then((response) =>
-          this.#logger.info({ response }, "setClusterId response")
+          this.#logger.info({ response }, "setClientId response")
         );
     });
 
@@ -71,15 +79,23 @@ export class JsonRpcClient {
     client.addMethod("live", ({}) => {
       return { ok: true };
     });
-    client.addMethod("grant", (permission: Permission) => {
-      // TODO: Grant permission in Kubernetes cluster that this client is connected to
-      this.#logger.info({ permission }, "grant");
-      return { ok: true };
-    });
-    client.addMethod("revoke", (permission: Permission) => {
-      // TODO: Revoke permission in Kubernetes cluster that this client is connected to
-      this.#logger.info({ permission }, "revoke");
-      return { ok: true };
+    client.addMethod("call", async (request: ForwardedRequest) => {
+      this.#logger.info({ request }, "forwarded request");
+      const response = await axios({
+        baseURL: this.#targetUrl,
+        url: request.path,
+        method: request.method,
+        headers: request.headers,
+        params: request.params,
+        data: request.data,
+        validateStatus: () => true, // do not throw, we return all status codes
+      });
+      return {
+        headers: response.headers,
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+      } as ForwardedResponse;
     });
   }
 }

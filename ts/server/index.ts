@@ -12,9 +12,10 @@ import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
 import pinoLogger, { Logger } from "pino";
 import audit from "pino-http";
+import { ForwardedResponse } from "types";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
-type ClusterId = string;
+type ClientId = string;
 type ChannelId = string;
 
 /**
@@ -87,7 +88,11 @@ export class JsonRpcServer {
     });
   }
 
-  async call(channelId: ChannelId, method: string, request: any) {
+  async call(
+    channelId: ChannelId,
+    method: string,
+    request: any
+  ): Promise<ForwardedResponse> {
     const requestId = randomUUID();
     const log = (obj: unknown, msg?: string, ...args: any[]) =>
       method === "live"
@@ -128,11 +133,11 @@ export class JsonRpcServer {
   }
 }
 
-export class PermissionerRpcServer extends JsonRpcServer {
+export class RemoteClientRpcServer extends JsonRpcServer {
   // When we call clients over the websocket tunnel we look up channelIds by the clusterId, and clusterId is set by clients
-  #channelIds: Map<ClusterId, ChannelId> = new Map();
+  #channelIds: Map<ClientId, ChannelId> = new Map();
   // When a new clusterId is set we have to find if there is an existing mapping for that channelId using this reverse mapping
-  #clusterIds: Map<ChannelId, ClusterId> = new Map();
+  #clientIds: Map<ChannelId, ClientId> = new Map();
   #logger: Logger;
 
   constructor(
@@ -145,25 +150,25 @@ export class PermissionerRpcServer extends JsonRpcServer {
       (channelId, channel) => this.onChannelConnection(channelId, channel),
       (channelId) => this.onChannelClose(channelId)
     );
-    this.#logger = pinoLogger({ name: "PermissionerRpcServer", port });
+    this.#logger = pinoLogger({ name: "ClusterRpcServer", port });
   }
 
   private removeChannel(channelId: ChannelId) {
-    const clusterId = this.#clusterIds.get(channelId);
-    this.#clusterIds.delete(channelId);
-    if (clusterId) {
-      this.#channelIds.delete(clusterId);
+    const clientId = this.#clientIds.get(channelId);
+    this.#clientIds.delete(channelId);
+    if (clientId) {
+      this.#channelIds.delete(clientId);
     }
   }
 
   onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
-    channel.addMethod("setClusterId", ({ clusterId }) => {
-      this.#logger.info({ channelId, clusterId }, "Setting cluster ID");
+    channel.addMethod("setClientId", ({ clusterId: clientId }) => {
+      this.#logger.info({ channelId, clientId }, "Setting client ID");
       // Remove existing mapping
       this.removeChannel(channelId);
       // Add new mapping
-      this.#channelIds.set(clusterId, channelId);
-      this.#clusterIds.set(channelId, clusterId);
+      this.#channelIds.set(clientId, channelId);
+      this.#clientIds.set(channelId, clientId);
       return { ok: true };
     });
   }
@@ -172,27 +177,24 @@ export class PermissionerRpcServer extends JsonRpcServer {
     this.removeChannel(channelId);
   }
 
-  async callClusters(method: string, request: any, ...clusterIds: ClusterId[]) {
-    const promises = clusterIds.map((clusterId) => {
-      const channelId = this.#channelIds.get(clusterId);
-      if (!channelId) {
-        return Promise.reject(new Error(`Cluster not found: ${clusterId}`));
-      }
-      return this.call(channelId, method, request);
-    });
-    return await Promise.allSettled(promises);
+  async callClient(method: string, request: any, clientId: ClientId) {
+    const channelId = this.#channelIds.get(clientId);
+    if (!channelId) {
+      return Promise.reject(new Error(`Client not found: ${clientId}`));
+    }
+    return this.call(channelId, method, request);
   }
 }
 
 export class JsonRpcApp {
   #app: Express;
   #httpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
-  #rpcServer: PermissionerRpcServer;
+  #rpcServer: RemoteClientRpcServer;
   #logger: Logger;
 
   constructor(port: number) {
     this.#app = express();
-    this.#rpcServer = new PermissionerRpcServer({ noServer: true }, port);
+    this.#rpcServer = new RemoteClientRpcServer({ noServer: true }, port);
     this.#logger = pinoLogger({ name: "JsonRpcApp", port });
 
     this.middleware();

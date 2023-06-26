@@ -1,6 +1,6 @@
 import { JsonRpcClient } from "../client";
 import { JsonRpcApp } from "../server";
-import { httpBridgeApp } from "../server/bridge";
+import { httpProxyApp } from "../server/proxy";
 import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -9,42 +9,47 @@ const logger = pinoLogger({ name: "cli" });
 
 void yargs(hideBin(process.argv))
   .command(
-    "server <rpcPort> <bridgePort>",
+    "server",
     "Start server",
     (yargs) =>
       yargs
-        .positional("rpcPort", {
+        .option("rpcPort", {
           type: "number",
           demandOption: true,
           describe:
             "The port where the server should listen for new RPC connections",
         })
-        .positional("bridgePort", {
+        .option("proxyPort", {
           type: "number",
           demandOption: true,
           describe:
-            "The port where the server should listen for permission requests",
+            "The port where the server should listen for incoming HTTP requests",
         }),
     (args) => {
-      const { rpcPort, bridgePort } = args;
+      const { rpcPort, proxyPort } = args;
       const jsonRpcApp = new JsonRpcApp(rpcPort);
-      const app = httpBridgeApp(jsonRpcApp.getRpcServer());
-      app.listen(bridgePort, () => {
-        logger.info(`HTTP Bridge app listening on port ${bridgePort}`);
+      const app = httpProxyApp(jsonRpcApp.getRpcServer());
+      app.listen(proxyPort, () => {
+        logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
       });
     }
   )
   .command(
-    "client <host> <port>",
+    "client",
     "Start client",
     (yargs) =>
       yargs
-        .positional("host", {
+        .option("targetUrl", {
           type: "string",
           demandOption: true,
           describe: "The host to connect to",
         })
-        .positional("port", {
+        .option("tunnelHost", {
+          type: "string",
+          demandOption: true,
+          describe: "The host to connect to",
+        })
+        .option("tunnelPort", {
           type: "number",
           demandOption: true,
           describe: "The port to connect to",
@@ -55,9 +60,9 @@ void yargs(hideBin(process.argv))
           describe: "If true, skips SSL",
         }),
     async (args) => {
-      const { host, port } = args;
-      const client = new JsonRpcClient(host, port, args);
-      logger.info("RUN");
+      const { targetUrl, tunnelHost: host, tunnelPort: port, insecure } = args;
+      const client = new JsonRpcClient(targetUrl, { host, port, insecure });
+      logger.info({ args }, "Running JSON-RPC client");
       await client.run();
     }
   )
