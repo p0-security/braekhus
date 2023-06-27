@@ -42,17 +42,22 @@ void yargs(hideBin(process.argv))
         .option("targetUrl", {
           type: "string",
           demandOption: true,
-          describe: "The host to connect to",
+          describe: "The URL to forward requests to",
+        })
+        .option("clientId", {
+          type: "string",
+          demandOption: true,
+          describe: "The clientId used to identify this client",
         })
         .option("tunnelHost", {
           type: "string",
           demandOption: true,
-          describe: "The host to connect to",
+          describe: "The host to connect to via RPC",
         })
         .option("tunnelPort", {
           type: "number",
           demandOption: true,
-          describe: "The port to connect to",
+          describe: "The port to connect to via RPC",
         })
         .option("insecure", {
           type: "boolean",
@@ -60,8 +65,8 @@ void yargs(hideBin(process.argv))
           describe: "If true, skips SSL",
         }),
     async (args) => {
-      const { targetUrl, tunnelHost: host, tunnelPort: port, insecure } = args;
-      const client = new JsonRpcClient(targetUrl, { host, port, insecure });
+      const { targetUrl, clientId, tunnelHost: host, tunnelPort: port, insecure } = args;
+      const client = new JsonRpcClient({ targetUrl, clientId }, { host, port, insecure });
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
     }

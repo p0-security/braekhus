@@ -6,7 +6,6 @@ import {
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
-import path from "path";
 import pinoLogger, { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
@@ -18,14 +17,17 @@ export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
   #webSocketUrl: string;
   #targetUrl: string;
+  #clientId: string;
   #logger: Logger;
 
   constructor(
-    targetUrl: string,
+    proxyConfig: { targetUrl: string, clientId: string },
     tunnelConfig: { host: string; port: number; insecure?: boolean }
   ) {
     this.#logger = pinoLogger({ name: "JsonRpcClient" });
+    const { targetUrl, clientId } = proxyConfig;
     this.#targetUrl = targetUrl;
+    this.#clientId = clientId;
     const { host, port, insecure } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
     this.#jsonRpcClient.completeWith(this.create());
@@ -54,9 +56,9 @@ export class JsonRpcClient {
     clientSocket.on("error", (err) => this.#logger.error(err));
 
     clientSocket.on("open", () => {
-      // After opening a connection, send the cluster ID to the server
+      // After opening a connection, send the client ID to the server
       jsonRpcClient
-        .request("setClientId", { clusterId: "myClusterId" })
+        .request("setClientId", { clientId: this.#clientId })
         .then((response) =>
           this.#logger.info({ response }, "setClientId response")
         );

@@ -162,7 +162,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   }
 
   onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
-    channel.addMethod("setClientId", ({ clusterId: clientId }) => {
+    channel.addMethod("setClientId", ({ clientId }) => {
       this.#logger.info({ channelId, clientId }, "Setting client ID");
       // Remove existing mapping
       this.removeChannel(channelId);
