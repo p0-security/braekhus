@@ -1,4 +1,6 @@
+import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
+import { ChannelNotFoundError } from "./error";
 import { httpError } from "./util";
 import express, { Express } from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
@@ -9,24 +11,37 @@ import {
 } from "json-rpc-2.0";
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
+import pinoLogger, { Logger } from "pino";
+import audit from "pino-http";
+import { ForwardedResponse } from "types";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
+
+type ClientId = string;
+type ChannelId = string;
 
 /**
  * Bi-directional JSON RPC server
  */
 export class JsonRpcServer {
   #serverSocket: WebSocketServer;
-  #connections: Map<string, JSONRPCServerAndClient<void, void>> = new Map();
+  #channels: Map<ChannelId, JSONRPCServerAndClient<void, void>> = new Map();
+  #logger: Logger;
 
   constructor(
-    options: ServerOptions<typeof WebSocket, typeof IncomingMessage>
+    options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
+    port: number,
+    onChannelConnection: (
+      channelId: ChannelId,
+      channel: JSONRPCServerAndClient
+    ) => void,
+    onChannelClose: (channelId: ChannelId) => void
   ) {
+    this.#logger = pinoLogger({ name: "JsonRpcServer", port });
     this.#serverSocket = new WebSocketServer(options);
     this.#serverSocket.on("connection", (ws) => {
-      console.log(typeof ws);
-      const id = randomUUID();
+      const channelId = randomUUID();
 
-      const jsonRpcServer = new JSONRPCServerAndClient(
+      const channel = new JSONRPCServerAndClient(
         new JSONRPCServer(),
         new JSONRPCClient((request) => {
           try {
@@ -38,34 +53,30 @@ export class JsonRpcServer {
         })
       );
 
-      jsonRpcServer.addMethod("echo", ({ text }) => ({ text }));
+      onChannelConnection(channelId, channel);
 
       ws.on("message", (data, isBinary) => {
         if (isBinary) {
-          console.error("binary data not expected");
+          this.#logger.warn("Message in binary format is not supported");
           return;
         }
         const message = data.toString("utf-8");
-        console.log("server on message:", message);
-        jsonRpcServer.receiveAndSend(JSON.parse(message));
+        channel.receiveAndSend(JSON.parse(message));
       });
-      ws.on("error", console.error);
+      ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
-        this.#connections.delete(id);
-        console.log("closed connection", id);
+        onChannelClose(channelId);
+        this.#channels.delete(channelId);
+        this.#logger.info({ channelId }, "Channel closed");
       });
 
-      this.#connections.set(id, jsonRpcServer);
+      this.#channels.set(channelId, channel);
     });
 
-    this.#serverSocket.on("error", console.error);
+    this.#serverSocket.on("error", (err) => this.#logger.error(err));
     this.#serverSocket.on("close", () => {});
 
-    setInterval(() => this.callClients(), 3000);
-  }
-
-  getWebSocketServer(): WebSocketServer {
-    return this.#serverSocket;
+    setInterval(() => this.healthCheck(), 3000);
   }
 
   handleUpgrade(
@@ -78,31 +89,120 @@ export class JsonRpcServer {
     });
   }
 
-  private callClients() {
-    for (const [id, server] of this.#connections.entries()) {
-      console.log("calling client", id);
-      server
-        .request("sum", { x: 1, y: 2 })
-        .then((response) => console.log("server response", response));
+  async call(
+    channelId: ChannelId,
+    method: string,
+    request: any
+  ): Promise<ForwardedResponse> {
+    const requestId = randomUUID();
+    const log = (obj: unknown, msg?: string, ...args: any[]) =>
+      method === "live"
+        ? this.#logger.debug(obj, msg, args)
+        : this.#logger.info(obj, msg, args);
+    log({ requestId, channelId, method, request }, "RPC request");
+    const channel = this.#channels.get(channelId);
+    if (!channel) {
+      throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
     }
+    const deferred = deferral<any>();
+    channel.request(method, request).then(
+      (response) => {
+        log({ requestId, channelId, method, response }, "RPC response");
+        deferred.resolve(response);
+      },
+      (reason) => {
+        this.#logger.error(
+          { requestId, channelId, method, reason },
+          "RPC response"
+        );
+        deferred.reject(reason);
+      }
+    );
+    return deferred.promise;
+  }
+
+  async broadcast(method: string, request: any) {
+    const promises = [...this.#channels.keys()].map((channelId) =>
+      this.call(channelId, method, request)
+    );
+    return Promise.allSettled(promises);
+  }
+
+  private async healthCheck() {
+    // TODO do something if the health check fails for some channels
+    await this.broadcast("live", {});
+  }
+}
+
+export class RemoteClientRpcServer extends JsonRpcServer {
+  // When we call clients over the websocket tunnel we look up channelIds by the clusterId, and clusterId is set by clients
+  #channelIds: Map<ClientId, ChannelId> = new Map();
+  // When a new clusterId is set we have to find if there is an existing mapping for that channelId using this reverse mapping
+  #clientIds: Map<ChannelId, ClientId> = new Map();
+  #logger: Logger;
+
+  constructor(
+    options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
+    port: number
+  ) {
+    super(
+      options,
+      port,
+      (channelId, channel) => this.onChannelConnection(channelId, channel),
+      (channelId) => this.onChannelClose(channelId)
+    );
+    this.#logger = pinoLogger({ name: "ClusterRpcServer", port });
+  }
+
+  private removeChannel(channelId: ChannelId) {
+    const clientId = this.#clientIds.get(channelId);
+    this.#clientIds.delete(channelId);
+    if (clientId) {
+      this.#channelIds.delete(clientId);
+    }
+  }
+
+  onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
+    channel.addMethod("setClientId", ({ clientId }) => {
+      this.#logger.info({ channelId, clientId }, "Setting client ID");
+      // Remove existing mapping
+      this.removeChannel(channelId);
+      // Add new mapping
+      this.#channelIds.set(clientId, channelId);
+      this.#clientIds.set(channelId, clientId);
+      return { ok: true };
+    });
+  }
+
+  onChannelClose(channelId: ChannelId) {
+    this.removeChannel(channelId);
+  }
+
+  async callClient(method: string, request: any, clientId: ClientId) {
+    const channelId = this.#channelIds.get(clientId);
+    if (!channelId) {
+      return Promise.reject(new Error(`Client not found: ${clientId}`));
+    }
+    return this.call(channelId, method, request);
   }
 }
 
 export class JsonRpcApp {
   #app: Express;
   #httpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
-  #rpcServer: JsonRpcServer;
+  #rpcServer: RemoteClientRpcServer;
+  #logger: Logger;
 
   constructor(port: number) {
     this.#app = express();
-    this.#rpcServer = new JsonRpcServer({ noServer: true });
+    this.#rpcServer = new RemoteClientRpcServer({ noServer: true }, port);
+    this.#logger = pinoLogger({ name: "JsonRpcApp", port });
 
-    this.#app.get("/live", (_req, res) => {
-      console.log("live");
-      return res.status(200).json({ message: "OK" });
-    });
+    this.middleware();
+    this.routes();
+
     this.#httpServer = this.#app.listen(port, () => {
-      console.log(`JSON RPC service listening on port ${port}`);
+      this.#logger.info(`JSON RPC service listening on port ${port}`);
     });
 
     this.#httpServer.on("upgrade", (request, socket, head) => {
@@ -116,6 +216,29 @@ export class JsonRpcApp {
         socket.write(httpError(code, reason, body));
         socket.destroy();
       });
+    });
+  }
+
+  getRpcServer() {
+    return this.#rpcServer;
+  }
+
+  private middleware() {
+    // Log all requests
+    this.#app.use(
+      audit({
+        logger: this.#logger,
+        customLogLevel: (_req, res) => {
+          // Note that _req is undefined :[
+          return res.req.url === "/live" ? "debug" : "info";
+        },
+      })
+    );
+  }
+
+  private routes() {
+    this.#app.get("/live", (_req, res) => {
+      return res.status(200).json({ message: "OK" });
     });
   }
 }

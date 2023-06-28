@@ -1,37 +1,63 @@
 import { JsonRpcClient } from "../client";
-import { JsonRpcApp, JsonRpcServer } from "../server";
+import { JsonRpcApp } from "../server";
+import { httpProxyApp } from "../server/proxy";
+import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
+const logger = pinoLogger({ name: "cli" });
+
 void yargs(hideBin(process.argv))
   .command(
-    "server <port>",
+    "server",
     "Start server",
     (yargs) =>
-      yargs.positional("port", {
-        type: "number",
-        demandOption: true,
-        describe: "The port where the server should listen for new connections",
-      }),
+      yargs
+        .option("rpcPort", {
+          type: "number",
+          demandOption: true,
+          describe:
+            "The port where the server should listen for new RPC connections",
+        })
+        .option("proxyPort", {
+          type: "number",
+          demandOption: true,
+          describe:
+            "The port where the server should listen for incoming HTTP requests",
+        }),
     (args) => {
-      const { port } = args;
-      new JsonRpcApp(port);
+      const { rpcPort, proxyPort } = args;
+      const jsonRpcApp = new JsonRpcApp(rpcPort);
+      const app = httpProxyApp(jsonRpcApp.getRpcServer());
+      app.listen(proxyPort, () => {
+        logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
+      });
     }
   )
   .command(
-    "client <host> <port>",
+    "client",
     "Start client",
     (yargs) =>
       yargs
-        .positional("host", {
+        .option("targetUrl", {
           type: "string",
           demandOption: true,
-          describe: "The host to connect to",
+          describe: "The URL to forward requests to",
         })
-        .positional("port", {
+        .option("clientId", {
+          type: "string",
+          demandOption: true,
+          describe: "The clientId used to identify this client",
+        })
+        .option("tunnelHost", {
+          type: "string",
+          demandOption: true,
+          describe: "The host to connect to via RPC",
+        })
+        .option("tunnelPort", {
           type: "number",
           demandOption: true,
-          describe: "The port to connect to",
+          describe: "The port to connect to via RPC",
         })
         .option("insecure", {
           type: "boolean",
@@ -39,9 +65,18 @@ void yargs(hideBin(process.argv))
           describe: "If true, skips SSL",
         }),
     async (args) => {
-      const { host, port } = args;
-      const client = new JsonRpcClient(host, port, args);
-      console.log("RUN");
+      const {
+        targetUrl,
+        clientId,
+        tunnelHost: host,
+        tunnelPort: port,
+        insecure,
+      } = args;
+      const client = new JsonRpcClient(
+        { targetUrl, clientId },
+        { host, port, insecure }
+      );
+      logger.info({ args }, "Running JSON-RPC client");
       await client.run();
     }
   )

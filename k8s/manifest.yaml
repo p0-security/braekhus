@@ -1,5 +1,5 @@
-# This manifest parameterizes the p0 host that the client will connect to. Example command to apply this manifest:
-# P0_HOST=myhost.com DOCKER_REPO=accountid.dkr.ecr.region.amazonaws.com/p0/kube-diver DOCKER_IMAGE_TAG=latest envsubst < manifest.yaml | kubectl apply -f -
+# This manifest parameterizes the tunnel and target parameters of the client. Example command to apply this manifest:
+# TARGET_URL=https://A5EF4.eks.amazonaws.com TUNNEL_HOST=myhost.com TUNNEL_PORT=443 DOCKER_REPO=accountid.dkr.ecr.region.amazonaws.com/p0/kube-diver DOCKER_IMAGE_TAG=latest envsubst < manifest.yaml | kubectl apply -f -
 
 kind: Namespace
 apiVersion: v1
@@ -30,8 +30,14 @@ spec:
         image: $DOCKER_REPO:$DOCKER_IMAGE_TAG
         args: 
         - "start:prod:client"
-        - "$P0_HOST"
-        - "443"
+        - "--targetUrl"
+        - "$TARGET_URL"
+        - "--clientId"
+        - "$CLIENT_ID"
+        - "--tunnelHost"
+        - "$TUNNEL_HOST"
+        - "--tunnelPort"
+        - "$TUNNEL_PORT"
         ports:
         - containerPort: 80
         resources:

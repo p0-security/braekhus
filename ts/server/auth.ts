@@ -1,8 +1,11 @@
 import * as jose from "jose";
 import * as fs from "node:fs/promises";
+import pinoLogger from "pino";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
+
+const logger = pinoLogger({ name: "auth" });
 
 export class AuthorizationError extends Error {
   constructor() {
@@ -28,6 +31,7 @@ const loadKey = async () => {
   return JSON.parse(jwk);
 };
 
+// TODO support different auth per client
 export const validateAuth = async (authorization: string | undefined) => {
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);
@@ -39,7 +43,7 @@ export const validateAuth = async (authorization: string | undefined) => {
   try {
     await jose.jwtVerify(jwt, jwk);
   } catch (error: any) {
-    console.warn("Error during verification", error.message);
+    logger.warn("Error during verification", error.message);
     throw new AuthorizationError();
   }
 };

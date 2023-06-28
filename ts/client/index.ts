@@ -1,10 +1,13 @@
-import { deferral } from "./deferral";
+import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
+import axios from "axios";
 import {
   JSONRPCClient,
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
+import pinoLogger, { Logger } from "pino";
+import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
 
 /**
@@ -12,17 +15,30 @@ import WebSocket from "ws";
  */
 export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
-  #url: string;
+  #webSocketUrl: string;
+  #targetUrl: string;
+  #clientId: string;
+  #logger: Logger;
 
-  constructor(host: string, port: number, options: { insecure?: boolean }) {
-    this.#url = `ws${!options.insecure ? "s" : ""}://${host}:${port}`;
+  constructor(
+    proxyConfig: { targetUrl: string; clientId: string },
+    tunnelConfig: { host: string; port: number; insecure?: boolean }
+  ) {
+    this.#logger = pinoLogger({ name: "JsonRpcClient" });
+    const { targetUrl, clientId } = proxyConfig;
+    this.#targetUrl = targetUrl;
+    this.#clientId = clientId;
+    const { host, port, insecure } = tunnelConfig;
+    this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
     this.#jsonRpcClient.completeWith(this.create());
-    this.#jsonRpcClient.promise.catch((error: any) => console.error(error));
+    this.#jsonRpcClient.promise.catch((error: any) =>
+      this.#logger.error({ error }, "Error creating JSON RPC client")
+    );
   }
 
   async create() {
     const token = await jwt();
-    const clientSocket = new WebSocket(this.#url, {
+    const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const jsonRpcClient = new JSONRPCServerAndClient(
@@ -37,17 +53,20 @@ export class JsonRpcClient {
       })
     );
 
-    clientSocket.on("error", console.error);
+    clientSocket.on("error", (err) => this.#logger.error(err));
 
     clientSocket.on("open", () => {
+      // After opening a connection, send the client ID to the server
       jsonRpcClient
-        .request("echo", { text: "Hello, World!" })
-        .then((response) => console.log("client received", response));
+        .request("setClientId", { clientId: this.#clientId })
+        .then((response) =>
+          this.#logger.info({ response }, "setClientId response")
+        );
     });
 
     clientSocket.on("message", (data, isBinary) => {
       if (isBinary) {
-        console.error("Unexpected binary data");
+        this.#logger.warn("Message in binary format is not supported");
         return;
       }
       const message = data.toString("utf-8");
@@ -59,9 +78,26 @@ export class JsonRpcClient {
 
   async run() {
     const client = await this.#jsonRpcClient.promise;
-    client.addMethod("sum", ({ x, y }) => {
-      console.log("sum method called");
-      return { result: x + y };
+    client.addMethod("live", ({}) => {
+      return { ok: true };
+    });
+    client.addMethod("call", async (request: ForwardedRequest) => {
+      this.#logger.info({ request }, "forwarded request");
+      const response = await axios({
+        baseURL: this.#targetUrl,
+        url: request.path,
+        method: request.method,
+        headers: request.headers,
+        params: request.params,
+        data: request.data,
+        validateStatus: () => true, // do not throw, we return all status codes
+      });
+      return {
+        headers: response.headers,
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+      } as ForwardedResponse;
     });
   }
 }
