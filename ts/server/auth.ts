@@ -31,6 +31,7 @@ const loadKey = async () => {
   return JSON.parse(jwk);
 };
 
+// TODO support different auth per client
 export const validateAuth = async (authorization: string | undefined) => {
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);

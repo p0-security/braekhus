@@ -1,3 +1,8 @@
+# Braekhus
+Braekhus is a NAT hole-punching HTTP reverse proxy. It allows you to send encrypted web traffic to a server on a private network, from the Internet, without altering firewall settings.
+
+The target server must be able to send requests out from the private network, e.g. via a NAT Gateway.
+
 ### Running locally
 1. Run a target service that HTTP requests will be forwarded to. An easy way is with python: `python3 -m http.server 8000` - this will serve the contents of the folder where the command runs.
 2. Run the server in `ts` folder: `yarn start:dev:server --rpcPort 8080 --proxyPort 8081`

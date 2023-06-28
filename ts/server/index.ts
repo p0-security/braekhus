@@ -1,5 +1,6 @@
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
+import { ChannelNotFoundError } from "./error";
 import { httpError } from "./util";
 import express, { Express } from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
@@ -101,7 +102,7 @@ export class JsonRpcServer {
     log({ requestId, channelId, method, request }, "RPC request");
     const channel = this.#channels.get(channelId);
     if (!channel) {
-      throw new Error(`Channel not found: ${channelId}`);
+      throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
     }
     const deferred = deferral<any>();
     channel.request(method, request).then(

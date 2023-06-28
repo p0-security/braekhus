@@ -65,8 +65,17 @@ void yargs(hideBin(process.argv))
           describe: "If true, skips SSL",
         }),
     async (args) => {
-      const { targetUrl, clientId, tunnelHost: host, tunnelPort: port, insecure } = args;
-      const client = new JsonRpcClient({ targetUrl, clientId }, { host, port, insecure });
+      const {
+        targetUrl,
+        clientId,
+        tunnelHost: host,
+        tunnelPort: port,
+        insecure,
+      } = args;
+      const client = new JsonRpcClient(
+        { targetUrl, clientId },
+        { host, port, insecure }
+      );
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
     }

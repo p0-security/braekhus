@@ -21,7 +21,7 @@ export class JsonRpcClient {
   #logger: Logger;
 
   constructor(
-    proxyConfig: { targetUrl: string, clientId: string },
+    proxyConfig: { targetUrl: string; clientId: string },
     tunnelConfig: { host: string; port: number; insecure?: boolean }
   ) {
     this.#logger = pinoLogger({ name: "JsonRpcClient" });

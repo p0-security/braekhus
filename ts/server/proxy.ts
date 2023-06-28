@@ -1,4 +1,5 @@
-import express, { Request, Router } from "express";
+import express from "express";
+import { omit } from "lodash";
 import { pathToRegexp } from "path-to-regexp";
 import pinoLogger from "pino";
 import audit from "pino-http";
@@ -25,7 +26,7 @@ export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
 
     const request: ForwardedRequest = {
       path,
-      headers: req.headers,
+      headers: omit(req.headers, "proxy-authorization"),
       method: req.method,
       params: req.query,
       data: req.body,
@@ -39,7 +40,7 @@ export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
       res.status(response.status).send(response.data);
     } catch (e: any) {
       logger.error({ error: e }, "Error handling request");
-      res.sendStatus(500);
+      res.sendStatus(502);
     }
   });
 
