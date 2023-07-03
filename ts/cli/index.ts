@@ -1,6 +1,5 @@
 import { JsonRpcClient } from "../client";
-import { JsonRpcApp } from "../server";
-import { httpProxyApp } from "../server/proxy";
+import { runApp } from "../server";
 import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -26,12 +25,7 @@ void yargs(hideBin(process.argv))
             "The port where the server should listen for incoming HTTP requests",
         }),
     (args) => {
-      const { rpcPort, proxyPort } = args;
-      const jsonRpcApp = new JsonRpcApp(rpcPort);
-      const app = httpProxyApp(jsonRpcApp.getRpcServer());
-      app.listen(proxyPort, () => {
-        logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
-      });
+      runApp(args);
     }
   )
   .command(

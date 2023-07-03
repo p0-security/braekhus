@@ -6,19 +6,28 @@ import {
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
+import { omit } from "lodash";
 import pinoLogger, { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
+
+const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
 
 /**
  * Bi-directional JSON RPC client
  */
 export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
+  #connected = deferral<void>();
   #webSocketUrl: string;
   #targetUrl: string;
+  #targetHostName: string;
   #clientId: string;
   #logger: Logger;
+
+  #webSocket?: WebSocket;
+  #retryTimeout?: NodeJS.Timeout;
+  #isShutdown: boolean = false;
 
   constructor(
     proxyConfig: { targetUrl: string; clientId: string },
@@ -27,6 +36,7 @@ export class JsonRpcClient {
     this.#logger = pinoLogger({ name: "JsonRpcClient" });
     const { targetUrl, clientId } = proxyConfig;
     this.#targetUrl = targetUrl;
+    this.#targetHostName = new URL(targetUrl).hostname;
     this.#clientId = clientId;
     const { host, port, insecure } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
@@ -53,15 +63,36 @@ export class JsonRpcClient {
       })
     );
 
-    clientSocket.on("error", (err) => this.#logger.error(err));
+    clientSocket.on("error", (error) => {
+      if (error.message.startsWith("connect ECONNREFUSED")) {
+        // Do not throw error. The `on("close")` handler is called, which retries the connection.
+        this.#logger.info({ error }, "connection refused");
+      } else {
+        this.#logger.error({ error }, "websocket error");
+        throw error;
+      }
+    });
 
     clientSocket.on("open", () => {
-      // After opening a connection, send the client ID to the server
+      this.#logger.info("connection opened");
+      // After opening the connection, send the client ID to the server
       jsonRpcClient
         .request("setClientId", { clientId: this.#clientId })
-        .then((response) =>
-          this.#logger.info({ response }, "setClientId response")
+        .then((response) => {
+          this.#logger.info({ response }, "setClientId response");
+          this.#connected.resolve();
+        });
+    });
+
+    clientSocket.on("close", () => {
+      this.#logger.info("connection closed");
+      // Keep looking for the server after closing the connection
+      if (!this.#isShutdown) {
+        this.#retryTimeout = setTimeout(
+          () => this.create(),
+          CONNECT_RETRY_INTERVAL_MILLIS
         );
+      }
     });
 
     clientSocket.on("message", (data, isBinary) => {
@@ -73,6 +104,8 @@ export class JsonRpcClient {
       jsonRpcClient.receiveAndSend(JSON.parse(message));
     });
 
+    this.#webSocket = clientSocket;
+
     return jsonRpcClient;
   }
 
@@ -83,11 +116,17 @@ export class JsonRpcClient {
     });
     client.addMethod("call", async (request: ForwardedRequest) => {
       this.#logger.info({ request }, "forwarded request");
+      // The headers are modified:
+      // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
+      // 2. The Host header should be switched out to the host this client is targeting.
       const response = await axios({
         baseURL: this.#targetUrl,
         url: request.path,
         method: request.method,
-        headers: request.headers,
+        headers: {
+          ...omit(request.headers, "content-length"),
+          host: this.#targetHostName,
+        },
         params: request.params,
         data: request.data,
         validateStatus: () => true, // do not throw, we return all status codes
@@ -99,5 +138,15 @@ export class JsonRpcClient {
         data: response.data,
       } as ForwardedResponse;
     });
+  }
+
+  async waitUntilConnected() {
+    await this.#connected.promise;
+  }
+
+  shutdown() {
+    this.#isShutdown = true;
+    clearTimeout(this.#retryTimeout);
+    this.#webSocket?.close();
   }
 }

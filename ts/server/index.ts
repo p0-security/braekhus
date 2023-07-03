@@ -1,6 +1,8 @@
+import { createLogger } from "../log";
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
 import { ChannelNotFoundError } from "./error";
+import { httpProxyApp } from "./proxy";
 import { httpError } from "./util";
 import express, { Express } from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
@@ -11,13 +13,43 @@ import {
 } from "json-rpc-2.0";
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
-import pinoLogger, { Logger } from "pino";
+import { Logger } from "pino";
 import audit from "pino-http";
 import { ForwardedResponse } from "types";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
+const logger = createLogger({ name: "server" });
+
 type ClientId = string;
 type ChannelId = string;
+
+type AppContext = {
+  rpcPort: number;
+  proxyPort: number;
+};
+
+export type InitContext = {
+  clientIds: Map<ChannelId, ClientId>;
+};
+
+export type App = {
+  expressApp: Express;
+  expressHttpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
+  jsonRpcApp: JsonRpcApp;
+};
+
+export const runApp = (
+  appContext: AppContext,
+  initContext?: InitContext
+): App => {
+  const { rpcPort, proxyPort } = appContext;
+  const jsonRpcApp = new JsonRpcApp(rpcPort, initContext);
+  const expressApp = httpProxyApp(jsonRpcApp.getRpcServer());
+  const expressHttpServer = expressApp.listen(proxyPort, () => {
+    logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
+  });
+  return { expressApp, expressHttpServer, jsonRpcApp };
+};
 
 /**
  * Bi-directional JSON RPC server
@@ -26,6 +58,7 @@ export class JsonRpcServer {
   #serverSocket: WebSocketServer;
   #channels: Map<ChannelId, JSONRPCServerAndClient<void, void>> = new Map();
   #logger: Logger;
+  #intervalTimer: NodeJS.Timer;
 
   constructor(
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
@@ -36,7 +69,7 @@ export class JsonRpcServer {
     ) => void,
     onChannelClose: (channelId: ChannelId) => void
   ) {
-    this.#logger = pinoLogger({ name: "JsonRpcServer", port });
+    this.#logger = createLogger({ name: "JsonRpcServer", port });
     this.#serverSocket = new WebSocketServer(options);
     this.#serverSocket.on("connection", (ws) => {
       const channelId = randomUUID();
@@ -76,7 +109,7 @@ export class JsonRpcServer {
     this.#serverSocket.on("error", (err) => this.#logger.error(err));
     this.#serverSocket.on("close", () => {});
 
-    setInterval(() => this.healthCheck(), 3000);
+    this.#intervalTimer = setInterval(() => this.healthCheck(), 3000);
   }
 
   handleUpgrade(
@@ -121,6 +154,11 @@ export class JsonRpcServer {
     return deferred.promise;
   }
 
+  shutdown() {
+    clearInterval(this.#intervalTimer);
+    this.#serverSocket.close();
+  }
+
   async broadcast(method: string, request: any) {
     const promises = [...this.#channels.keys()].map((channelId) =>
       this.call(channelId, method, request)
@@ -143,7 +181,8 @@ export class RemoteClientRpcServer extends JsonRpcServer {
 
   constructor(
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
-    port: number
+    port: number,
+    initContext?: InitContext
   ) {
     super(
       options,
@@ -151,7 +190,13 @@ export class RemoteClientRpcServer extends JsonRpcServer {
       (channelId, channel) => this.onChannelConnection(channelId, channel),
       (channelId) => this.onChannelClose(channelId)
     );
-    this.#logger = pinoLogger({ name: "ClusterRpcServer", port });
+    this.#logger = createLogger({ name: "ClusterRpcServer", port });
+    if (initContext) {
+      const { clientIds } = initContext;
+      for (const [channelId, clientId] of clientIds) {
+        this.addChannel(channelId, clientId);
+      }
+    }
   }
 
   private removeChannel(channelId: ChannelId) {
@@ -162,14 +207,18 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     }
   }
 
+  private addChannel(channelId: ChannelId, clientId: ClientId) {
+    // Remove existing mapping
+    this.removeChannel(channelId);
+    // Add new mapping
+    this.#channelIds.set(clientId, channelId);
+    this.#clientIds.set(channelId, clientId);
+  }
+
   onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
     channel.addMethod("setClientId", ({ clientId }) => {
       this.#logger.info({ channelId, clientId }, "Setting client ID");
-      // Remove existing mapping
-      this.removeChannel(channelId);
-      // Add new mapping
-      this.#channelIds.set(clientId, channelId);
-      this.#clientIds.set(channelId, clientId);
+      this.addChannel(channelId, clientId);
       return { ok: true };
     });
   }
@@ -181,8 +230,9 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   async callClient(method: string, request: any, clientId: ClientId) {
     const channelId = this.#channelIds.get(clientId);
     if (!channelId) {
-      return Promise.reject(new Error(`Client not found: ${clientId}`));
+      throw new Error(`Client not found: ${clientId}`);
     }
+    this.#logger.info({ channelId, method, request }, "Calling");
     return this.call(channelId, method, request);
   }
 }
@@ -193,10 +243,14 @@ export class JsonRpcApp {
   #rpcServer: RemoteClientRpcServer;
   #logger: Logger;
 
-  constructor(port: number) {
+  constructor(port: number, initContext?: InitContext) {
     this.#app = express();
-    this.#rpcServer = new RemoteClientRpcServer({ noServer: true }, port);
-    this.#logger = pinoLogger({ name: "JsonRpcApp", port });
+    this.#rpcServer = new RemoteClientRpcServer(
+      { noServer: true },
+      port,
+      initContext
+    );
+    this.#logger = createLogger({ name: "JsonRpcApp", port });
 
     this.middleware();
     this.routes();
@@ -221,6 +275,11 @@ export class JsonRpcApp {
 
   getRpcServer() {
     return this.#rpcServer;
+  }
+
+  shutdown() {
+    this.#rpcServer.shutdown();
+    this.#httpServer.close();
   }
 
   private middleware() {

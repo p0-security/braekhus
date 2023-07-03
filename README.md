@@ -3,6 +3,7 @@ Braekhus is a NAT hole-punching HTTP reverse proxy. It allows you to send encryp
 
 The target server must be able to send requests out from the private network, e.g. via a NAT Gateway.
 
+## Development
 ### Running locally
 1. Run a target service that HTTP requests will be forwarded to. An easy way is with python: `python3 -m http.server 8000` - this will serve the contents of the folder where the command runs.
 2. Run the server in `ts` folder: `yarn start:dev:server --rpcPort 8080 --proxyPort 8081`
@@ -12,6 +13,7 @@ Then send an HTTP request to the server's proxy port:
 ```
 curl -i -X GET "http://localhost:8081/client/myClientId"
 ```
+Note, the `--clientId` argument must match the client ID path component that is used in the HTTP call the proxy server.
 Response (if the python server runs at the repo root):
 ```
 HTTP/1.1 200 OK
@@ -46,6 +48,19 @@ Keep-Alive: timeout=5
 <hr>
 </body>
 </html>
+```
+
+### Connect client to Kubernetes
+The client needs the additional root certificate of the Kubernetes cluster. Specify the path to that certificate in the `NODE_EXTRA_CA_CERTS` environment variable:
+```
+NODE_EXTRA_CA_CERTS=./ca.pem yarn start:dev:client ...
+```
+
+Use the public (or private IP if behind firewall) of the Kubernetes cluster as the `--targetUrl` argument.
+Example command:
+
+```
+NODE_EXTRA_CA_CERTS=./client/ca.pem yarn start:dev:client --targetUrl https://{{ip-or-host}} --clientId myClientId --tunnelHost localhost --tunnelPort 8080
 ```
 
 ### Development
