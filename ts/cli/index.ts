@@ -1,8 +1,9 @@
-import { JsonRpcClient } from "../client";
-import { runApp } from "../server";
 import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+
+import { JsonRpcClient } from "../client";
+import { runApp } from "../server";
 
 const logger = pinoLogger({ name: "cli" });
 

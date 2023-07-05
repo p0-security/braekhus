@@ -1,9 +1,10 @@
+import { Server } from "http";
+import request from "supertest";
+
 import { App, InitContext, runApp } from "../";
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client";
 import { testHttpServer } from "./testExpressApp";
-import { Server } from "http";
-import request from "supertest";
 
 const SERVER_RPC_PORT = 8080;
 const SERVER_PROXY_PORT = 8081;

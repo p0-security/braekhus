@@ -1,10 +1,11 @@
-import { createLogger } from "../log";
 import express from "express";
 import { omit } from "lodash";
 import { pathToRegexp } from "path-to-regexp";
 import audit from "pino-http";
 import { RemoteClientRpcServer } from "server";
 import { ForwardedRequest, IncomingRequest } from "types";
+
+import { createLogger } from "../log";
 
 const logger = createLogger({ name: "proxy" });
 
@@ -13,7 +14,7 @@ const PATH_REGEXP = pathToRegexp(PATH);
 
 export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
   const app = express();
-  app.use(audit({ logger }));
+  // app.use(audit({ logger }));
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
   app.use(express.json());

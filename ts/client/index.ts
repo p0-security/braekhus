@@ -1,5 +1,3 @@
-import { deferral } from "../util/deferral";
-import { jwt } from "./jwks";
 import axios from "axios";
 import {
   JSONRPCClient,
@@ -10,6 +8,9 @@ import { omit } from "lodash";
 import pinoLogger, { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
+
+import { deferral } from "../util/deferral";
+import { jwt } from "./jwks";
 
 const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
 
@@ -51,7 +52,7 @@ export class JsonRpcClient {
     const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const jsonRpcClient = new JSONRPCServerAndClient(
+    const client = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient((request) => {
         try {
@@ -76,7 +77,7 @@ export class JsonRpcClient {
     clientSocket.on("open", () => {
       this.#logger.info("connection opened");
       // After opening the connection, send the client ID to the server
-      jsonRpcClient
+      client
         .request("setClientId", { clientId: this.#clientId })
         .then((response) => {
           this.#logger.info({ response }, "setClientId response");
@@ -101,16 +102,11 @@ export class JsonRpcClient {
         return;
       }
       const message = data.toString("utf-8");
-      jsonRpcClient.receiveAndSend(JSON.parse(message));
+      client.receiveAndSend(JSON.parse(message));
     });
 
     this.#webSocket = clientSocket;
 
-    return jsonRpcClient;
-  }
-
-  async run() {
-    const client = await this.#jsonRpcClient.promise;
     client.addMethod("live", ({}) => {
       return { ok: true };
     });
@@ -138,6 +134,12 @@ export class JsonRpcClient {
         data: response.data,
       } as ForwardedResponse;
     });
+
+    return client;
+  }
+
+  async run() {
+    await this.#jsonRpcClient.promise;
   }
 
   async waitUntilConnected() {
