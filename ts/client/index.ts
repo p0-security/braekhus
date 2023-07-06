@@ -102,6 +102,16 @@ export class JsonRpcClient {
 
     this.#webSocket = clientSocket;
 
+    axios.interceptors.request.use((request) => {
+      this.#logger.info({ request }, "Axios request");
+      return request;
+    });
+
+    axios.interceptors.response.use((response) => {
+      this.#logger.info({ response }, "Axios response");
+      return response;
+    });
+
     client.addMethod("live", ({}) => {
       return { ok: true };
     });

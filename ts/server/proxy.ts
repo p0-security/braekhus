@@ -14,7 +14,7 @@ const PATH_REGEXP = pathToRegexp(PATH);
 
 export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
   const app = express();
-  // app.use(audit({ logger }));
+  app.use(audit({ logger }));
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
   app.use(express.json());

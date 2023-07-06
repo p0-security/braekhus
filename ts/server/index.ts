@@ -120,7 +120,6 @@ export class JsonRpcServer {
       ws.on("close", () => {
         onChannelClose(channelId);
         this.#channels.delete(channelId);
-        console.log(this.#channels.size, "channels.size");
         this.#logger.info({ channelId }, "Channel closed");
       });
 
@@ -153,7 +152,7 @@ export class JsonRpcServer {
     const requestId = randomUUID();
     const log = (obj: unknown, msg?: string, ...args: any[]) =>
       method === "live"
-        ? this.#logger.info(obj, msg, args)
+        ? this.#logger.debug(obj, msg, args)
         : this.#logger.info(obj, msg, args);
     log({ requestId, channelId, method, request }, "RPC request");
     const channel = this.#channels.get(channelId);
@@ -183,7 +182,6 @@ export class JsonRpcServer {
   }
 
   async broadcast(method: string, request: any) {
-    console.log(this.#channels.size, "broadcast");
     const promises = [...this.#channels.keys()].map((channelId) =>
       this.call(channelId, method, request)
     );
@@ -227,8 +225,6 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     if (clientId) {
       this.#channelIds.delete(clientId);
     }
-    console.log(this.#clientIds, "clientIds");
-    console.log(this.#channelIds, "channelIds");
   }
 
   private addChannel(channelId: ChannelId, clientId: ClientId) {
