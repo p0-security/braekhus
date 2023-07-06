@@ -133,6 +133,10 @@ export class JsonRpcClient {
       client.receiveAndSend(JSON.parse(message));
     });
 
+    clientSocket.on("ping", () => {
+      this.#logger.debug("ping");
+    });
+
     this.#webSocket = clientSocket;
 
     axios.interceptors.request.use((request) => {

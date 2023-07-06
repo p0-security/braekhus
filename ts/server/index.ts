@@ -116,6 +116,7 @@ export class JsonRpcServer {
         const message = data.toString("utf-8");
         channel.receiveAndSend(JSON.parse(message));
       });
+      ws.on("pong", () => this.#logger.info("pong"));
       ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
         onChannelClose(channelId);
@@ -124,14 +125,12 @@ export class JsonRpcServer {
       });
 
       this.#channels.set(channelId, channel);
-
-      this.call(channelId, "live", {});
     });
 
     this.#serverSocket.on("error", (err) => this.#logger.error(err));
     this.#serverSocket.on("close", () => {});
 
-    this.#intervalTimer = setInterval(() => this.healthCheck(), 3000);
+    this.#intervalTimer = setInterval(() => this.healthCheck(), 5000);
   }
 
   handleUpgrade(
@@ -189,8 +188,11 @@ export class JsonRpcServer {
   }
 
   private async healthCheck() {
-    // TODO do something if the health check fails for some channels
-    await this.broadcast("live", {});
+    this.#serverSocket.clients.forEach(ws => {
+      // TODO do something if the health check fails for some sockets
+      ws.ping();
+    });
+    // await this.broadcast("live", {});
   }
 }
 
