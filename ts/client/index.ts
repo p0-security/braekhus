@@ -65,13 +65,8 @@ export class JsonRpcClient {
     );
 
     clientSocket.on("error", (error) => {
-      if (error.message.startsWith("connect ECONNREFUSED")) {
-        // Do not throw error. The `on("close")` handler is called, which retries the connection.
-        this.#logger.info({ error }, "connection refused");
-      } else {
-        this.#logger.error({ error }, "websocket error");
-        throw error;
-      }
+      // Do not throw error. The `on("close")` handler is called, which retries the connection.
+      this.#logger.warn({ error }, "websocket error");
     });
 
     clientSocket.on("open", () => {
