@@ -188,7 +188,7 @@ export class JsonRpcServer {
   }
 
   private async healthCheck() {
-    this.#serverSocket.clients.forEach(ws => {
+    this.#serverSocket.clients.forEach((ws) => {
       // TODO do something if the health check fails for some sockets
       ws.ping();
     });

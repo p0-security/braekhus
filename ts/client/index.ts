@@ -69,21 +69,21 @@ export class JsonRpcClient {
       })
     );
 
-    const keepAlive = () => {
-      axios
-        .request({
-          baseURL: this.#httpUrl,
-          url: "/live",
-          method: "GET",
-          validateStatus: () => true, // do not throw, we return all status codes
-        })
-        .then((response) => {
-          this.#logger.debug({ response }, "live response");
-          this.#keepAliveTimeout = setTimeout(
-            keepAlive,
-            KEEP_ALIVE_INTERVAL_MILLIS
-          );
-        });
+    // const keepAlive = () => {
+      // axios
+      //   .request({
+      //     baseURL: this.#httpUrl,
+      //     url: "/live",
+      //     method: "GET",
+      //     validateStatus: () => true, // do not throw, we return all status codes
+      //   })
+      //   .then((response) => {
+      //     this.#logger.debug({ response }, "live response");
+      //     this.#keepAliveTimeout = setTimeout(
+      //       keepAlive,
+      //       KEEP_ALIVE_INTERVAL_MILLIS
+      //     );
+      //   });
       // client.request("live", { clientId: this.#clientId }).then((response) => {
       //   this.#logger.debug({ response }, "live response");
       //   this.#keepAliveTimeout = setTimeout(
@@ -91,7 +91,7 @@ export class JsonRpcClient {
       //     KEEP_ALIVE_INTERVAL_MILLIS
       //   );
       // });
-    };
+    // };
 
     clientSocket.on("error", (error) => {
       // Do not throw error. The `on("close")` handler is called, which retries the connection.
@@ -107,10 +107,10 @@ export class JsonRpcClient {
           this.#logger.info({ response }, "setClientId response");
           this.#connected.resolve();
         });
-      this.#keepAliveTimeout = setTimeout(
-        keepAlive,
-        KEEP_ALIVE_INTERVAL_MILLIS
-      );
+      // this.#keepAliveTimeout = setTimeout(
+      //   keepAlive,
+      //   KEEP_ALIVE_INTERVAL_MILLIS
+      // );
     });
 
     clientSocket.on("close", () => {
