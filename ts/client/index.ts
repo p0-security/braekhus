@@ -5,7 +5,8 @@ import {
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import { omit } from "lodash";
-import pinoLogger, { Logger } from "pino";
+import { createLogger } from "log";
+import { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
 
@@ -34,7 +35,7 @@ export class JsonRpcClient {
     proxyConfig: { targetUrl: string; clientId: string },
     tunnelConfig: { host: string; port: number; insecure?: boolean }
   ) {
-    this.#logger = pinoLogger({ name: "JsonRpcClient" });
+    this.#logger = createLogger({ name: "JsonRpcClient" });
     const { targetUrl, clientId } = proxyConfig;
     this.#targetUrl = targetUrl;
     this.#targetHostName = new URL(targetUrl).hostname;
@@ -103,12 +104,12 @@ export class JsonRpcClient {
     this.#webSocket = clientSocket;
 
     axios.interceptors.request.use((request) => {
-      this.#logger.info({ request }, "Axios request");
+      this.#logger.debug({ request }, "Axios request");
       return request;
     });
 
     axios.interceptors.response.use((response) => {
-      this.#logger.info({ response }, "Axios response");
+      this.#logger.debug({ response }, "Axios response");
       return response;
     });
 

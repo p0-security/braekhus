@@ -1,4 +1,5 @@
 import express from "express";
+import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash";
 import { pathToRegexp } from "path-to-regexp";
 import audit from "pino-http";
@@ -42,10 +43,27 @@ export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
     logger.debug({ body: req.body }, "forwarded request body");
     try {
       const response = await rpcServer.callClient("call", request, clientId);
-      Object.entries(response.headers).forEach(([key, value]) => {
+      let isChunked = false;
+      Object.entries<string>(response.headers).forEach(([key, value]) => {
+        if (
+          key.toLowerCase() === "transfer-encoding" &&
+          value.toLowerCase().trim() === "chunked"
+        ) {
+          isChunked = true;
+        }
         res.setHeader(key, value);
       });
-      res.status(response.status).send(response.data);
+      logger.debug({ isChunked }, "chunked");
+      // If the Kubernetes server sends "Transfer-Encoding: chunked" data then we must stream the response by piping it.
+      // If we `send` the data we get an error saying both "Transfer-Encoding" and "Content-Length" headers cannot be
+      // present. "Content-Length" is added by express if you `send`.
+      if (isChunked) {
+        // TODO: Do we have to forward status code separately? Can the response ever be chunked and non-200?
+        const stream = new JsonStreamStringify(response.data);
+        stream.pipe(res);
+      } else {
+        res.status(response.status).send(response.data);
+      }
     } catch (e: any) {
       logger.error({ error: e }, "error handling request");
       res.sendStatus(502);

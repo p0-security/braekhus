@@ -90,6 +90,7 @@ describe("Proxy server starts up first", () => {
 
     beforeAll(async () => {
       client = await runClient();
+      await client.jsonRpcClient.waitUntilConnected();
     });
 
     afterAll(() => {
