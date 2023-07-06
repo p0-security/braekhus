@@ -14,7 +14,7 @@ import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
 
 const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
-const KEEP_ALIVE_INTERVAL_MILLIS = 15000;
+const KEEP_ALIVE_INTERVAL_MILLIS = 5000;
 
 /**
  * Bi-directional JSON RPC client
@@ -23,13 +23,14 @@ export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
   #connected = deferral<void>();
   #webSocketUrl: string;
+  #httpUrl: string;
   #targetUrl: string;
   #targetHostName: string;
   #clientId: string;
   #logger: Logger;
-  #keepAliveTimeout: NodeJS.Timeout;
 
   #webSocket?: WebSocket;
+  #keepAliveTimeout?: NodeJS.Timeout;
   #retryTimeout?: NodeJS.Timeout;
   #isShutdown: boolean = false;
 
@@ -44,6 +45,7 @@ export class JsonRpcClient {
     this.#clientId = clientId;
     const { host, port, insecure } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
+    this.#httpUrl = `http${!insecure ? "s" : ""}://${host}:${port}`;
     this.#jsonRpcClient.completeWith(this.create());
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
@@ -68,13 +70,27 @@ export class JsonRpcClient {
     );
 
     const keepAlive = () => {
-      client.request("live", { clientId: this.#clientId }).then((response) => {
-        this.#logger.debug({ response }, "live response");
-        this.#keepAliveTimeout = setTimeout(
-          keepAlive,
-          KEEP_ALIVE_INTERVAL_MILLIS
-        );
-      });
+      axios
+        .request({
+          baseURL: this.#httpUrl,
+          url: "/live",
+          method: "GET",
+          validateStatus: () => true, // do not throw, we return all status codes
+        })
+        .then((response) => {
+          this.#logger.debug({ response }, "live response");
+          this.#keepAliveTimeout = setTimeout(
+            keepAlive,
+            KEEP_ALIVE_INTERVAL_MILLIS
+          );
+        });
+      // client.request("live", { clientId: this.#clientId }).then((response) => {
+      //   this.#logger.debug({ response }, "live response");
+      //   this.#keepAliveTimeout = setTimeout(
+      //     keepAlive,
+      //     KEEP_ALIVE_INTERVAL_MILLIS
+      //   );
+      // });
     };
 
     clientSocket.on("error", (error) => {
