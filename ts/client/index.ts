@@ -14,7 +14,6 @@ import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
 
 const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
-const KEEP_ALIVE_INTERVAL_MILLIS = 5000;
 
 /**
  * Bi-directional JSON RPC client
@@ -23,14 +22,12 @@ export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
   #connected = deferral<void>();
   #webSocketUrl: string;
-  #httpUrl: string;
   #targetUrl: string;
   #targetHostName: string;
   #clientId: string;
   #logger: Logger;
 
   #webSocket?: WebSocket;
-  #keepAliveTimeout?: NodeJS.Timeout;
   #retryTimeout?: NodeJS.Timeout;
   #isShutdown: boolean = false;
 
@@ -45,7 +42,6 @@ export class JsonRpcClient {
     this.#clientId = clientId;
     const { host, port, insecure } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
-    this.#httpUrl = `http${!insecure ? "s" : ""}://${host}:${port}`;
     this.#jsonRpcClient.completeWith(this.create());
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
@@ -69,30 +65,6 @@ export class JsonRpcClient {
       })
     );
 
-    // const keepAlive = () => {
-      // axios
-      //   .request({
-      //     baseURL: this.#httpUrl,
-      //     url: "/live",
-      //     method: "GET",
-      //     validateStatus: () => true, // do not throw, we return all status codes
-      //   })
-      //   .then((response) => {
-      //     this.#logger.debug({ response }, "live response");
-      //     this.#keepAliveTimeout = setTimeout(
-      //       keepAlive,
-      //       KEEP_ALIVE_INTERVAL_MILLIS
-      //     );
-      //   });
-      // client.request("live", { clientId: this.#clientId }).then((response) => {
-      //   this.#logger.debug({ response }, "live response");
-      //   this.#keepAliveTimeout = setTimeout(
-      //     keepAlive,
-      //     KEEP_ALIVE_INTERVAL_MILLIS
-      //   );
-      // });
-    // };
-
     clientSocket.on("error", (error) => {
       // Do not throw error. The `on("close")` handler is called, which retries the connection.
       this.#logger.warn({ error }, "websocket error");
@@ -107,10 +79,6 @@ export class JsonRpcClient {
           this.#logger.info({ response }, "setClientId response");
           this.#connected.resolve();
         });
-      // this.#keepAliveTimeout = setTimeout(
-      //   keepAlive,
-      //   KEEP_ALIVE_INTERVAL_MILLIS
-      // );
     });
 
     clientSocket.on("close", () => {
@@ -134,6 +102,8 @@ export class JsonRpcClient {
     });
 
     clientSocket.on("ping", () => {
+      // The client automatically responds to ping messages without an implementation here
+      // TODO detect broken connection based on https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
       this.#logger.debug("ping");
     });
 
@@ -149,9 +119,6 @@ export class JsonRpcClient {
       return response;
     });
 
-    client.addMethod("live", ({}) => {
-      return { ok: true };
-    });
     client.addMethod("call", async (request: ForwardedRequest) => {
       this.#logger.info({ request }, "forwarded request");
       // The headers are modified:
@@ -190,7 +157,6 @@ export class JsonRpcClient {
 
   shutdown() {
     this.#isShutdown = true;
-    clearTimeout(this.#keepAliveTimeout);
     clearTimeout(this.#retryTimeout);
     this.#webSocket?.close();
   }

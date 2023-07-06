@@ -116,7 +116,7 @@ export class JsonRpcServer {
         const message = data.toString("utf-8");
         channel.receiveAndSend(JSON.parse(message));
       });
-      ws.on("pong", () => this.#logger.info("pong"));
+      ws.on("pong", () => this.#logger.debug("pong"));
       ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
         onChannelClose(channelId);
@@ -149,11 +149,10 @@ export class JsonRpcServer {
     request: any
   ): Promise<ForwardedResponse> {
     const requestId = randomUUID();
-    const log = (obj: unknown, msg?: string, ...args: any[]) =>
-      method === "live"
-        ? this.#logger.debug(obj, msg, args)
-        : this.#logger.info(obj, msg, args);
-    log({ requestId, channelId, method, request }, "RPC request");
+    this.#logger.debug(
+      { requestId, channelId, method, request },
+      "RPC request"
+    );
     const channel = this.#channels.get(channelId);
     if (!channel) {
       throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
@@ -161,7 +160,10 @@ export class JsonRpcServer {
     const deferred = deferral<any>();
     channel.request(method, request).then(
       (response) => {
-        log({ requestId, channelId, method, response }, "RPC response");
+        this.#logger.debug(
+          { requestId, channelId, method, response },
+          "RPC response"
+        );
         deferred.resolve(response);
       },
       (reason) => {
@@ -189,10 +191,9 @@ export class JsonRpcServer {
 
   private async healthCheck() {
     this.#serverSocket.clients.forEach((ws) => {
-      // TODO do something if the health check fails for some sockets
+      // TODO detect broken connection based on https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
       ws.ping();
     });
-    // await this.broadcast("live", {});
   }
 }
 
@@ -241,10 +242,6 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     channel.addMethod("setClientId", ({ clientId }) => {
       this.#logger.info({ channelId, clientId }, "Setting client ID");
       this.addChannel(channelId, clientId);
-      return { ok: true };
-    });
-    channel.addMethod("live", ({ clientId }) => {
-      this.#logger.debug({ channelId, clientId }, "live");
       return { ok: true };
     });
   }
