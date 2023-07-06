@@ -1,4 +1,4 @@
-import pinoLogger, { Logger, LoggerOptions } from "pino";
+import pinoLogger, { Bindings, Logger } from "pino";
 import {
   err as serializeError,
   req as serializeRequest,
@@ -8,25 +8,22 @@ import {
 /**
  * Logger with error serializer and levels displayed as text
  */
-export const createLogger = <T extends LoggerOptions>(
-  options: T
-): Logger<T> => {
-  const serializers = options.serializers;
-  const logger = pinoLogger({
-    ...options,
-    serializers: {
-      error: serializeError,
-      req: serializeRequest,
-      res: serializeResponse,
-      ...serializers,
+const rootLogger = pinoLogger({
+  level: process.env.LOG_LEVEL || "info",
+  serializers: {
+    error: serializeError,
+    req: serializeRequest,
+    res: serializeResponse,
+  },
+  // Redact the authrozition header that may contains secret token
+  redact: ["[*].authorization", "[*].Authorization"],
+  formatters: {
+    level: (label) => {
+      return { level: label };
     },
-    // Redact the authrozition header that may contains secret token
-    redact: ["[*].authorization", "[*].Authorization"],
-    formatters: {
-      level: (label) => {
-        return { level: label };
-      },
-    },
-  });
-  return logger;
+  },
+});
+
+export const createLogger = (bindings: Bindings): Logger => {
+  return rootLogger.child(bindings);
 };

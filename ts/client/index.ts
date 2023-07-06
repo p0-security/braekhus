@@ -5,15 +5,16 @@ import {
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import { omit } from "lodash";
-import { createLogger } from "log";
 import { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
 
+import { createLogger } from "../log";
 import { deferral } from "../util/deferral";
 import { jwt } from "./jwks";
 
 const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
+const KEEP_ALIVE_INTERVAL_MILLIS = 15000;
 
 /**
  * Bi-directional JSON RPC client
@@ -26,6 +27,7 @@ export class JsonRpcClient {
   #targetHostName: string;
   #clientId: string;
   #logger: Logger;
+  #keepAliveTimeout: NodeJS.Timeout;
 
   #webSocket?: WebSocket;
   #retryTimeout?: NodeJS.Timeout;
@@ -65,6 +67,16 @@ export class JsonRpcClient {
       })
     );
 
+    const keepAlive = () => {
+      client.request("live", { clientId: this.#clientId }).then((response) => {
+        this.#logger.debug({ response }, "live response");
+        this.#keepAliveTimeout = setTimeout(
+          keepAlive,
+          KEEP_ALIVE_INTERVAL_MILLIS
+        );
+      });
+    };
+
     clientSocket.on("error", (error) => {
       // Do not throw error. The `on("close")` handler is called, which retries the connection.
       this.#logger.warn({ error }, "websocket error");
@@ -79,6 +91,10 @@ export class JsonRpcClient {
           this.#logger.info({ response }, "setClientId response");
           this.#connected.resolve();
         });
+      this.#keepAliveTimeout = setTimeout(
+        keepAlive,
+        KEEP_ALIVE_INTERVAL_MILLIS
+      );
     });
 
     clientSocket.on("close", () => {
@@ -154,6 +170,7 @@ export class JsonRpcClient {
 
   shutdown() {
     this.#isShutdown = true;
+    clearTimeout(this.#keepAliveTimeout);
     clearTimeout(this.#retryTimeout);
     this.#webSocket?.close();
   }

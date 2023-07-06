@@ -241,6 +241,10 @@ export class RemoteClientRpcServer extends JsonRpcServer {
       this.addChannel(channelId, clientId);
       return { ok: true };
     });
+    channel.addMethod("live", ({ clientId }) => {
+      this.#logger.debug({ channelId, clientId }, "live");
+      return { ok: true };
+    });
   }
 
   onChannelClose(channelId: ChannelId) {

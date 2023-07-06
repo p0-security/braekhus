@@ -1,11 +1,11 @@
-import pinoLogger from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { JsonRpcClient } from "../client";
+import { createLogger } from "../log";
 import { runApp } from "../server";
 
-const logger = pinoLogger({ name: "cli" });
+const logger = createLogger({ name: "cli" });
 
 void yargs(hideBin(process.argv))
   .command(
