@@ -22,7 +22,7 @@ export const createLogger = <T extends LoggerOptions>(
     // Redact the authrozition header that may contains secret token
     redact: [
       "response.config.headers.authorization", // Axios intercepted response object
-      "request.headers.authorization", // Axios intercepted request object + forwarded request object
+      "request.headers.authorization", // Axios intercepted request object + forwarded request object (JSON RPC request)
     ],
     formatters: {
       level: (label) => {
