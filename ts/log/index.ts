@@ -13,6 +13,7 @@ export const createLogger = <T extends LoggerOptions>(
 ): Logger<T> => {
   const logger = pinoLogger({
     ...options,
+    level: process.env.LOG_LEVEL || "info",
     serializers: {
       error: serializeError,
       req: serializeRequest,

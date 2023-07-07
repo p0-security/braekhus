@@ -121,7 +121,7 @@ export class JsonRpcClient {
     });
 
     client.addMethod("call", async (request: ForwardedRequest) => {
-      this.#logger.info({ request }, "forwarded request");
+      this.#logger.debug({ request }, "forwarded request");
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.

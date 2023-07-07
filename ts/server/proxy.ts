@@ -39,8 +39,7 @@ export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
       params: req.query,
       data: req.body,
     };
-    logger.info({ request: omit(request, "body") }, "forwarded request");
-    logger.debug({ body: req.body }, "forwarded request body");
+    logger.debug({ request }, "forwarded request");
     try {
       const response = await rpcServer.callClientWithRetry(
         "call",
