@@ -77,6 +77,7 @@ export class JsonRpcClient {
         .request("setClientId", { clientId: this.#clientId })
         .then((response) => {
           this.#logger.info({ response }, "setClientId response");
+          this.#retryBackoff.reset();
           this.#connected.resolve();
         });
     });
@@ -143,8 +144,6 @@ export class JsonRpcClient {
         data: response.data,
       } as ForwardedResponse;
     });
-
-    this.#retryBackoff.reset();
 
     return client;
   }
