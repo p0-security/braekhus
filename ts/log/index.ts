@@ -20,7 +20,10 @@ export const createLogger = <T extends LoggerOptions>(
       res: serializeResponse,
     },
     // Redact the authrozition header that may contains secret token
-    redact: ["[*].authorization", "[*].Authorization"],
+    redact: [
+      "response.config.headers.authorization", // Axios intercepted response object
+      "request.headers.authorization", // Axios intercepted request object + forwarded request object
+    ],
     formatters: {
       level: (label) => {
         return { level: label };

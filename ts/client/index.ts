@@ -116,7 +116,11 @@ export class JsonRpcClient {
     });
 
     axios.interceptors.response.use((response) => {
-      this.#logger.debug({ response }, "Axios response");
+      // Do not log response object, it's lengthy and difficult to filter out the authorization header
+      this.#logger.debug(
+        { response: omit(response, "request") },
+        "Axios response"
+      );
       return response;
     });
 
