@@ -12,6 +12,7 @@ import audit from "pino-http";
 import { ForwardedResponse } from "types";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
+import { RetryOptions, retryWithBackoff } from "../client/backoff";
 import { createLogger } from "../log";
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
@@ -255,8 +256,19 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     if (!channelId) {
       throw new Error(`Client not found: ${clientId}`);
     }
-    this.#logger.info({ channelId, method, request }, "Calling");
+    this.#logger.trace({ channelId, method, request }, "Calling");
     return this.call(channelId, method, request);
+  }
+
+  async callClientWithRetry(
+    method: string,
+    request: any,
+    clientId: ClientId,
+    options: RetryOptions
+  ) {
+    return await retryWithBackoff(options, () =>
+      this.callClient(method, request, clientId)
+    );
   }
 }
 

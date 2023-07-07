@@ -42,7 +42,12 @@ export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
     logger.info({ request: omit(request, "body") }, "forwarded request");
     logger.debug({ body: req.body }, "forwarded request body");
     try {
-      const response = await rpcServer.callClient("call", request, clientId);
+      const response = await rpcServer.callClientWithRetry(
+        "call",
+        request,
+        clientId,
+        { startMillis: 250, maxMillis: 2000, maxRetries: 5 }
+      );
       let isChunked = false;
       Object.entries<string>(response.headers).forEach(([key, value]) => {
         if (

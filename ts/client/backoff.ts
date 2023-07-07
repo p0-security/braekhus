@@ -1,4 +1,9 @@
-export class RetryBackoff {
+import { createLogger } from "../log";
+import { deferral } from "../util/deferral";
+
+const logger = createLogger({ name: "backoff" });
+
+export class Backoff {
   #startMillis;
   #maxMillis;
   #count = 0;
@@ -26,3 +31,50 @@ export class RetryBackoff {
     this.#count = 0;
   }
 }
+
+export type RetryOptions = {
+  startMillis: number;
+  maxMillis: number;
+  maxRetries: number;
+};
+
+export const sleep = (millis: number): Promise<void> => {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, millis);
+  });
+};
+
+export const retryWithBackoff = async <T>(
+  options: RetryOptions,
+  func: () => Promise<T>
+) => {
+  const result = deferral<T>();
+
+  const run = async () => {
+    const { startMillis, maxMillis, maxRetries } = options;
+    const backoff = new Backoff(startMillis, maxMillis);
+    let count = 0;
+    while (true) {
+      try {
+        result.resolve(await func());
+        return;
+      } catch (e: any) {
+        count++;
+        if (count > maxRetries) {
+          result.reject(e);
+          return;
+        }
+        const timeout = backoff.next();
+        logger.debug(
+          { nextTimeout: timeout, count, error: e },
+          "Retrying with backoff timeout"
+        );
+        await sleep(timeout);
+      }
+    }
+  };
+
+  run();
+
+  return result.promise;
+};

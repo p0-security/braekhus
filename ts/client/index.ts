@@ -11,7 +11,7 @@ import WebSocket from "ws";
 
 import { createLogger } from "../log";
 import { deferral } from "../util/deferral";
-import { RetryBackoff } from "./backoff";
+import { Backoff } from "./backoff";
 import { jwt } from "./jwks";
 
 /**
@@ -25,7 +25,7 @@ export class JsonRpcClient {
   #targetHostName: string;
   #clientId: string;
   #logger: Logger;
-  #retryBackoff: RetryBackoff = new RetryBackoff(1, 3000); // Aggressively retry starting at 1ms delay
+  #backoff: Backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
 
   #webSocket?: WebSocket;
   #retryTimeout?: NodeJS.Timeout;
@@ -77,7 +77,7 @@ export class JsonRpcClient {
         .request("setClientId", { clientId: this.#clientId })
         .then((response) => {
           this.#logger.info({ response }, "setClientId response");
-          this.#retryBackoff.reset();
+          this.#backoff.reset();
           this.#connected.resolve();
         });
     });
@@ -88,7 +88,7 @@ export class JsonRpcClient {
       if (!this.#isShutdown) {
         this.#retryTimeout = setTimeout(
           () => this.create(),
-          this.#retryBackoff.next()
+          this.#backoff.next()
         );
       }
     });
