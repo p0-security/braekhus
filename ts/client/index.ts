@@ -11,9 +11,8 @@ import WebSocket from "ws";
 
 import { createLogger } from "../log";
 import { deferral } from "../util/deferral";
+import { RetryBackoff } from "./backoff";
 import { jwt } from "./jwks";
-
-const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
 
 /**
  * Bi-directional JSON RPC client
@@ -26,6 +25,7 @@ export class JsonRpcClient {
   #targetHostName: string;
   #clientId: string;
   #logger: Logger;
+  #retryBackoff: RetryBackoff = new RetryBackoff(1, 3000); // Aggressively retry starting at 1ms delay
 
   #webSocket?: WebSocket;
   #retryTimeout?: NodeJS.Timeout;
@@ -87,7 +87,7 @@ export class JsonRpcClient {
       if (!this.#isShutdown) {
         this.#retryTimeout = setTimeout(
           () => this.create(),
-          CONNECT_RETRY_INTERVAL_MILLIS
+          this.#retryBackoff.next()
         );
       }
     });
@@ -143,6 +143,8 @@ export class JsonRpcClient {
         data: response.data,
       } as ForwardedResponse;
     });
+
+    this.#retryBackoff.reset();
 
     return client;
   }
