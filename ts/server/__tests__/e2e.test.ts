@@ -1,10 +1,10 @@
-import { Server } from "http";
-import request from "supertest";
-
 import { App, InitContext, runApp } from "../";
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client";
 import { testHttpServer } from "./testExpressApp";
+import { Backoff } from "client/backoff";
+import { Server } from "http";
+import request from "supertest";
 
 const SERVER_RPC_PORT = 8080;
 const SERVER_PROXY_PORT = 8081;
@@ -16,17 +16,22 @@ type Client = {
 };
 
 const runServer = (initContext?: InitContext) => {
-  return runApp(
-    { rpcPort: SERVER_RPC_PORT, proxyPort: SERVER_PROXY_PORT },
-    initContext
-  );
+  return runApp({
+    appContext: { rpcPort: SERVER_RPC_PORT, proxyPort: SERVER_PROXY_PORT },
+    initContext,
+  });
 };
 
 const runClient = async (waitUntilConnected?: boolean): Promise<Client> => {
   const httpServer = testHttpServer(TARGET_PORT);
   const jsonRpcClient = new JsonRpcClient(
     { targetUrl: `http://localhost:${TARGET_PORT}`, clientId: "testClientId" },
-    { host: "localhost", port: SERVER_RPC_PORT, insecure: true }
+    {
+      host: "localhost",
+      port: SERVER_RPC_PORT,
+      insecure: true,
+      backoff: new Backoff(500, 500),
+    }
   );
   await jsonRpcClient.run();
   if (waitUntilConnected) {

@@ -1,3 +1,7 @@
+import { createLogger } from "../log";
+import { deferral } from "../util/deferral";
+import { Backoff } from "./backoff";
+import { jwt } from "./jwks";
 import axios from "axios";
 import {
   JSONRPCClient,
@@ -8,11 +12,6 @@ import { omit } from "lodash";
 import { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
-
-import { createLogger } from "../log";
-import { deferral } from "../util/deferral";
-import { Backoff } from "./backoff";
-import { jwt } from "./jwks";
 
 /**
  * Bi-directional JSON RPC client
@@ -25,23 +24,29 @@ export class JsonRpcClient {
   #targetHostName: string;
   #clientId: string;
   #logger: Logger;
-  #backoff: Backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
 
+  #backoff?: Backoff;
   #webSocket?: WebSocket;
   #retryTimeout?: NodeJS.Timeout;
   #isShutdown: boolean = false;
 
   constructor(
     proxyConfig: { targetUrl: string; clientId: string },
-    tunnelConfig: { host: string; port: number; insecure?: boolean }
+    tunnelConfig: {
+      host: string;
+      port: number;
+      insecure?: boolean;
+      backoff?: Backoff;
+    }
   ) {
     this.#logger = createLogger({ name: "JsonRpcClient" });
     const { targetUrl, clientId } = proxyConfig;
     this.#targetUrl = targetUrl;
     this.#targetHostName = new URL(targetUrl).hostname;
     this.#clientId = clientId;
-    const { host, port, insecure } = tunnelConfig;
+    const { host, port, insecure, backoff } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
+    this.#backoff = backoff;
     this.#jsonRpcClient.completeWith(this.create());
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
@@ -77,7 +82,7 @@ export class JsonRpcClient {
         .request("setClientId", { clientId: this.#clientId })
         .then((response) => {
           this.#logger.info({ response }, "setClientId response");
-          this.#backoff.reset();
+          this.#backoff?.reset();
           this.#connected.resolve();
         });
     });
@@ -85,7 +90,7 @@ export class JsonRpcClient {
     clientSocket.on("close", () => {
       this.#logger.info("connection closed");
       // Keep looking for the server after closing the connection
-      if (!this.#isShutdown) {
+      if (!this.#isShutdown && this.#backoff) {
         this.#retryTimeout = setTimeout(
           () => this.create(),
           this.#backoff.next()

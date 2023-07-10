@@ -1,3 +1,5 @@
+import { createLogger } from "../log";
+import { RetryOptions } from "client/backoff";
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash";
@@ -6,14 +8,15 @@ import audit from "pino-http";
 import { RemoteClientRpcServer } from "server";
 import { ForwardedRequest, IncomingRequest } from "types";
 
-import { createLogger } from "../log";
-
 const logger = createLogger({ name: "proxy" });
 
 const PATH = /\/client\/([a-zA-Z0-9-]+)(.*)/;
 const PATH_REGEXP = pathToRegexp(PATH);
 
-export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
+export const httpProxyApp = (
+  rpcServer: RemoteClientRpcServer,
+  retryOptions?: RetryOptions
+) => {
   const app = express();
   app.use(audit({ logger }));
 
@@ -45,7 +48,7 @@ export const httpProxyApp = (rpcServer: RemoteClientRpcServer) => {
         "call",
         request,
         clientId,
-        { startMillis: 250, maxMillis: 2000, maxRetries: 5 }
+        retryOptions
       );
       let isChunked = false;
       Object.entries<string>(response.headers).forEach(([key, value]) => {

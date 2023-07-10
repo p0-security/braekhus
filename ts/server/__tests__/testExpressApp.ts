@@ -1,7 +1,6 @@
+import { createLogger } from "../../log";
 import express, { Router } from "express";
 import audit from "pino-http";
-
-import { createLogger } from "../../log";
 
 const logger = createLogger({ name: "testHttpServer" });
 

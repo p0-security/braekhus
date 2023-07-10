@@ -1,3 +1,10 @@
+import { RetryOptions, retryWithBackoff } from "../client/backoff";
+import { createLogger } from "../log";
+import { deferral } from "../util/deferral";
+import { validateAuth } from "./auth";
+import { ChannelNotFoundError } from "./error";
+import { httpProxyApp } from "./proxy";
+import { httpError } from "./util";
 import express, { Express } from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
 import {
@@ -11,14 +18,6 @@ import { Logger } from "pino";
 import audit from "pino-http";
 import { ForwardedResponse } from "types";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
-
-import { RetryOptions, retryWithBackoff } from "../client/backoff";
-import { createLogger } from "../log";
-import { deferral } from "../util/deferral";
-import { validateAuth } from "./auth";
-import { ChannelNotFoundError } from "./error";
-import { httpProxyApp } from "./proxy";
-import { httpError } from "./util";
 
 const logger = createLogger({ name: "server" });
 
@@ -40,10 +39,12 @@ export type App = {
   jsonRpcApp: JsonRpcApp;
 };
 
-export const runApp = (
-  appContext: AppContext,
-  initContext?: InitContext
-): App => {
+export const runApp = (appParams: {
+  appContext: AppContext;
+  initContext?: InitContext;
+  retryOptions?: RetryOptions;
+}): App => {
+  const { appContext, initContext, retryOptions } = appParams;
   const { rpcPort, proxyPort } = appContext;
   const rpcHttpApp = express();
 
@@ -66,7 +67,7 @@ export const runApp = (
     logger.info(`HTTP JSON RPC service listening on port ${rpcPort}`);
   });
   const jsonRpcApp = new JsonRpcApp(rpcHttpServer, initContext);
-  const expressApp = httpProxyApp(jsonRpcApp.getRpcServer());
+  const expressApp = httpProxyApp(jsonRpcApp.getRpcServer(), retryOptions);
   const expressHttpServer = expressApp.listen(proxyPort, () => {
     logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
   });
@@ -251,7 +252,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     this.removeChannel(channelId);
   }
 
-  async callClient(method: string, request: any, clientId: ClientId) {
+  async #callClient(method: string, request: any, clientId: ClientId) {
     const channelId = this.#channelIds.get(clientId);
     if (!channelId) {
       throw new Error(`Client not found: ${clientId}`);
@@ -264,11 +265,14 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     method: string,
     request: any,
     clientId: ClientId,
-    options: RetryOptions
+    retryOptions?: RetryOptions
   ) {
-    return await retryWithBackoff(options, () =>
-      this.callClient(method, request, clientId)
-    );
+    if (retryOptions) {
+      return await retryWithBackoff(retryOptions, () =>
+        this.#callClient(method, request, clientId)
+      );
+    }
+    return this.#callClient(method, request, clientId);
   }
 }
 

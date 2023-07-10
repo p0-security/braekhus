@@ -1,9 +1,9 @@
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
-
 import { JsonRpcClient } from "../client";
+import { Backoff } from "../client/backoff";
 import { createLogger } from "../log";
 import { runApp } from "../server";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 
 const logger = createLogger({ name: "cli" });
 
@@ -26,7 +26,10 @@ void yargs(hideBin(process.argv))
             "The port where the server should listen for incoming HTTP requests",
         }),
     (args) => {
-      runApp(args);
+      runApp({
+        appContext: args,
+        retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
+      });
     }
   )
   .command(
@@ -67,9 +70,10 @@ void yargs(hideBin(process.argv))
         tunnelPort: port,
         insecure,
       } = args;
+      const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
       const client = new JsonRpcClient(
         { targetUrl, clientId },
-        { host, port, insecure }
+        { host, port, insecure, backoff }
       );
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
