@@ -1,4 +1,3 @@
-import { createLogger } from "../log";
 import { RetryOptions } from "client/backoff";
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
@@ -7,6 +6,8 @@ import { pathToRegexp } from "path-to-regexp";
 import audit from "pino-http";
 import { RemoteClientRpcServer } from "server";
 import { ForwardedRequest, IncomingRequest } from "types";
+
+import { createLogger } from "../log";
 
 const logger = createLogger({ name: "proxy" });
 

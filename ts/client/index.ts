@@ -1,7 +1,3 @@
-import { createLogger } from "../log";
-import { deferral } from "../util/deferral";
-import { Backoff } from "./backoff";
-import { jwt } from "./jwks";
 import axios from "axios";
 import {
   JSONRPCClient,
@@ -12,6 +8,11 @@ import { omit } from "lodash";
 import { Logger } from "pino";
 import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
+
+import { createLogger } from "../log";
+import { deferral } from "../util/deferral";
+import { Backoff } from "./backoff";
+import { jwt } from "./jwks";
 
 /**
  * Bi-directional JSON RPC client
