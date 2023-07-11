@@ -2,6 +2,8 @@ import { Request } from "express";
 import core from "express-serve-static-core";
 import { IncomingHttpHeaders } from "node:http";
 
+export const CLIENT_ID_HEADER = "x-braekhus-client-id";
+
 export type IncomingRequest = Request<
   core.ParamsDictionary,
   any,
@@ -24,3 +26,5 @@ export type ForwardedResponse = {
   statusText: string;
   data: any;
 };
+
+export type PublicKeyGetter = (clientId: string) => Promise<any | undefined>;

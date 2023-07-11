@@ -9,7 +9,11 @@ import { Logger } from "pino";
 import WebSocket from "ws";
 
 import { createLogger } from "../log";
-import { ForwardedRequest, ForwardedResponse } from "../types";
+import {
+  CLIENT_ID_HEADER,
+  ForwardedRequest,
+  ForwardedResponse,
+} from "../types";
 import { deferral } from "../util/deferral";
 import { Backoff } from "./backoff";
 import { jwt } from "./jwks";
@@ -55,9 +59,12 @@ export class JsonRpcClient {
   }
 
   async create() {
-    const token = await jwt();
+    const token = await jwt(this.#clientId);
     const clientSocket = new WebSocket(this.#webSocketUrl, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        [CLIENT_ID_HEADER]: this.#clientId,
+      },
     });
     const client = new JSONRPCServerAndClient(
       new JSONRPCServer(),

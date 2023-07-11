@@ -13,10 +13,11 @@ import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 import { RetryOptions, retryWithBackoff } from "../client/backoff";
 import { createLogger } from "../log";
-import { ForwardedResponse } from "../types";
+import { CLIENT_ID_HEADER, ForwardedResponse, PublicKeyGetter } from "../types";
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
 import { ChannelNotFoundError } from "./error";
+import { ensureKey } from "./key-cache";
 import { httpProxyApp } from "./proxy";
 import { httpError } from "./util";
 
@@ -67,7 +68,7 @@ export const runApp = (appParams: {
   const rpcHttpServer = rpcHttpApp.listen(rpcPort, () => {
     logger.info(`HTTP JSON RPC service listening on port ${rpcPort}`);
   });
-  const jsonRpcApp = new JsonRpcApp(rpcHttpServer, initContext);
+  const jsonRpcApp = new JsonRpcApp(rpcHttpServer, ensureKey, initContext);
   const expressApp = httpProxyApp(jsonRpcApp.getRpcServer(), retryOptions);
   const expressHttpServer = expressApp.listen(proxyPort, () => {
     logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
@@ -284,6 +285,7 @@ export class JsonRpcApp {
 
   constructor(
     httpServer: Server<typeof IncomingMessage, typeof ServerResponse>,
+    publicKeyGetter: PublicKeyGetter,
     initContext?: InitContext
   ) {
     this.#logger = createLogger({ name: "JsonRpcApp" });
@@ -295,7 +297,11 @@ export class JsonRpcApp {
 
     this.#httpServer.on("upgrade", (request, socket, head) => {
       (async () => {
-        await validateAuth(request.headers.authorization);
+        await validateAuth(
+          request.headers[CLIENT_ID_HEADER],
+          request.headers.authorization,
+          publicKeyGetter
+        );
         this.#rpcServer.handleUpgrade(request, socket, head);
       })().catch((error: any) => {
         this.#logger.error({ error }, "Error upgrading connection");
