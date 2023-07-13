@@ -1,10 +1,10 @@
-import { Backoff } from "client/backoff";
 import { Server } from "http";
 import request from "supertest";
 
 import { App, InitContext, runApp } from "../";
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client";
+import { Backoff } from "../../client/backoff";
 import { testHttpServer } from "./testExpressApp";
 
 const SERVER_RPC_PORT = 8080;

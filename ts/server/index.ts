@@ -9,11 +9,11 @@ import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
 import { Logger } from "pino";
 import audit from "pino-http";
-import { ForwardedResponse } from "types";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 import { RetryOptions, retryWithBackoff } from "../client/backoff";
 import { createLogger } from "../log";
+import { ForwardedResponse } from "../types";
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
 import { ChannelNotFoundError } from "./error";

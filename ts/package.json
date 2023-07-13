@@ -8,7 +8,7 @@
     "@swc/helpers": "^0.4.14",
     "@swc/jest": "^0.2.26",
     "@trivago/prettier-plugin-sort-imports": "^4.0.0",
-    "@types/express": "^4.17.17",
+    "@types/express": "4.17.14",
     "@types/jest": "^29.2.2",
     "@types/lodash": "^4.14.195",
     "@types/node": "^18.11.18",

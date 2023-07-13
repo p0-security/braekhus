@@ -6,10 +6,10 @@ import {
 } from "json-rpc-2.0";
 import { omit } from "lodash";
 import { Logger } from "pino";
-import { ForwardedRequest, ForwardedResponse } from "types";
 import WebSocket from "ws";
 
 import { createLogger } from "../log";
+import { ForwardedRequest, ForwardedResponse } from "../types";
 import { deferral } from "../util/deferral";
 import { Backoff } from "./backoff";
 import { jwt } from "./jwks";
