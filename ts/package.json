@@ -1,7 +1,7 @@
 {
-  "name": "kubernetes-remote-server",
+  "name": "braekhus",
   "version": "0.0.1",
-  "description": "Kubernetes Remote Server",
+  "description": "Hole-punching reverse HTTPS proxy",
   "private": true,
   "devDependencies": {
     "@swc/core": "^1.3.23",
