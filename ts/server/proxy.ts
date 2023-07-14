@@ -1,13 +1,12 @@
+import { RetryOptions } from "../client/backoff";
+import { createLogger } from "../log";
+import { RemoteClientRpcServer } from "../server";
+import { ForwardedRequest, IncomingRequest } from "../types";
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash";
 import { pathToRegexp } from "path-to-regexp";
 import audit from "pino-http";
-
-import { RetryOptions } from "../client/backoff";
-import { createLogger } from "../log";
-import { RemoteClientRpcServer } from "../server";
-import { ForwardedRequest, IncomingRequest } from "../types";
 
 const logger = createLogger({ name: "proxy" });
 
@@ -51,14 +50,9 @@ export const httpProxyApp = (
         clientId,
         retryOptions
       );
-      let isChunked = false;
+      const isChunked =
+        response.headers["transfer-encoding"]?.trim() === "chunked";
       Object.entries<string>(response.headers).forEach(([key, value]) => {
-        if (
-          key.toLowerCase() === "transfer-encoding" &&
-          value.toLowerCase().trim() === "chunked"
-        ) {
-          isChunked = true;
-        }
         res.setHeader(key, value);
       });
       logger.debug({ isChunked }, "chunked");
@@ -68,6 +62,8 @@ export const httpProxyApp = (
       if (isChunked) {
         // TODO: Do we have to forward status code separately? Can the response ever be chunked and non-200?
         const stream = new JsonStreamStringify(response.data);
+        // By default, stream.end() is called on the destination Writable stream when the source Readable stream emits 'end', so that the destination is no longer writable.
+        // See See https://nodejs.org/api/stream.html#readablepipedestination-options
         stream.pipe(res);
       } else {
         res.status(response.status).send(response.data);

@@ -1,10 +1,9 @@
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
-
 import { JsonRpcClient } from "../client";
 import { Backoff } from "../client/backoff";
 import { createLogger } from "../log";
 import { runApp } from "../server";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 
 const logger = createLogger({ name: "cli" });
 
