@@ -1,4 +1,7 @@
+import { createLogger } from "../log";
+import { ForwardedRequest, ForwardedResponse } from "../types";
 import { deferral } from "../util/deferral";
+import { Backoff } from "./backoff";
 import { jwt } from "./jwks";
 import axios from "axios";
 import {
@@ -7,11 +10,8 @@ import {
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import { omit } from "lodash";
-import pinoLogger, { Logger } from "pino";
-import { ForwardedRequest, ForwardedResponse } from "types";
+import { Logger } from "pino";
 import WebSocket from "ws";
-
-const CONNECT_RETRY_INTERVAL_MILLIS = 3000;
 
 /**
  * Bi-directional JSON RPC client
@@ -25,21 +25,28 @@ export class JsonRpcClient {
   #clientId: string;
   #logger: Logger;
 
+  #backoff?: Backoff;
   #webSocket?: WebSocket;
   #retryTimeout?: NodeJS.Timeout;
   #isShutdown: boolean = false;
 
   constructor(
     proxyConfig: { targetUrl: string; clientId: string },
-    tunnelConfig: { host: string; port: number; insecure?: boolean }
+    tunnelConfig: {
+      host: string;
+      port: number;
+      insecure?: boolean;
+      backoff?: Backoff;
+    }
   ) {
-    this.#logger = pinoLogger({ name: "JsonRpcClient" });
+    this.#logger = createLogger({ name: "JsonRpcClient" });
     const { targetUrl, clientId } = proxyConfig;
     this.#targetUrl = targetUrl;
     this.#targetHostName = new URL(targetUrl).hostname;
     this.#clientId = clientId;
-    const { host, port, insecure } = tunnelConfig;
+    const { host, port, insecure, backoff } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
+    this.#backoff = backoff;
     this.#jsonRpcClient.completeWith(this.create());
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
@@ -51,7 +58,7 @@ export class JsonRpcClient {
     const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const jsonRpcClient = new JSONRPCServerAndClient(
+    const client = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient((request) => {
         try {
@@ -64,22 +71,18 @@ export class JsonRpcClient {
     );
 
     clientSocket.on("error", (error) => {
-      if (error.message.startsWith("connect ECONNREFUSED")) {
-        // Do not throw error. The `on("close")` handler is called, which retries the connection.
-        this.#logger.info({ error }, "connection refused");
-      } else {
-        this.#logger.error({ error }, "websocket error");
-        throw error;
-      }
+      // Do not throw error. The `on("close")` handler is called, which retries the connection.
+      this.#logger.warn({ error }, "websocket error");
     });
 
     clientSocket.on("open", () => {
       this.#logger.info("connection opened");
       // After opening the connection, send the client ID to the server
-      jsonRpcClient
+      client
         .request("setClientId", { clientId: this.#clientId })
         .then((response) => {
           this.#logger.info({ response }, "setClientId response");
+          this.#backoff?.reset();
           this.#connected.resolve();
         });
     });
@@ -87,10 +90,10 @@ export class JsonRpcClient {
     clientSocket.on("close", () => {
       this.#logger.info("connection closed");
       // Keep looking for the server after closing the connection
-      if (!this.#isShutdown) {
+      if (!this.#isShutdown && this.#backoff) {
         this.#retryTimeout = setTimeout(
           () => this.create(),
-          CONNECT_RETRY_INTERVAL_MILLIS
+          this.#backoff.next()
         );
       }
     });
@@ -101,21 +104,33 @@ export class JsonRpcClient {
         return;
       }
       const message = data.toString("utf-8");
-      jsonRpcClient.receiveAndSend(JSON.parse(message));
+      client.receiveAndSend(JSON.parse(message));
+    });
+
+    clientSocket.on("ping", () => {
+      // The client automatically responds to ping messages without an implementation here
+      // TODO detect broken connection based on https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
+      this.#logger.debug("ping");
     });
 
     this.#webSocket = clientSocket;
 
-    return jsonRpcClient;
-  }
-
-  async run() {
-    const client = await this.#jsonRpcClient.promise;
-    client.addMethod("live", ({}) => {
-      return { ok: true };
+    axios.interceptors.request.use((request) => {
+      this.#logger.debug({ request }, "Axios request");
+      return request;
     });
+
+    axios.interceptors.response.use((response) => {
+      // Do not log response object, it's lengthy and difficult to filter out the authorization header
+      this.#logger.debug(
+        { response: omit(response, "request") },
+        "Axios response"
+      );
+      return response;
+    });
+
     client.addMethod("call", async (request: ForwardedRequest) => {
-      this.#logger.info({ request }, "forwarded request");
+      this.#logger.debug({ request }, "forwarded request");
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
@@ -138,6 +153,12 @@ export class JsonRpcClient {
         data: response.data,
       } as ForwardedResponse;
     });
+
+    return client;
+  }
+
+  async run() {
+    await this.#jsonRpcClient.promise;
   }
 
   async waitUntilConnected() {
