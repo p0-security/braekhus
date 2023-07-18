@@ -20,19 +20,18 @@ export class AuthorizationError extends Error {
 }
 
 export const validateAuth = async (
-  xClientId: string | string[] | undefined,
   authorization: string | undefined,
   publicKeyGetter: PublicKeyGetter
 ) => {
-  const clientId = Array.isArray(xClientId) ? xClientId[0] : xClientId;
-  if (!clientId) {
-    throw new AuthorizationError();
-  }
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);
   if (!match || !match[1]) throw new AuthorizationError();
-  logger.info({ clientId }, "Validating client ID");
   const jwt = match[1];
+  const clientId = jose.decodeJwt(jwt).sub;
+  logger.debug({ clientId }, "Validating client ID");
+  if (!clientId) {
+    throw new AuthorizationError();
+  }
   const key = await publicKeyGetter(clientId);
   if (!key) throw new AuthorizationError();
   const jwk = await jose.importJWK(key as any, ALG);

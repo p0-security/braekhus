@@ -13,7 +13,7 @@ import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 import { RetryOptions, retryWithBackoff } from "../client/backoff";
 import { createLogger } from "../log";
-import { CLIENT_ID_HEADER, ForwardedResponse, PublicKeyGetter } from "../types";
+import { ForwardedResponse, PublicKeyGetter } from "../types";
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
 import { ChannelNotFoundError } from "./error";
@@ -297,11 +297,7 @@ export class JsonRpcApp {
 
     this.#httpServer.on("upgrade", (request, socket, head) => {
       (async () => {
-        await validateAuth(
-          request.headers[CLIENT_ID_HEADER],
-          request.headers.authorization,
-          publicKeyGetter
-        );
+        await validateAuth(request.headers.authorization, publicKeyGetter);
         this.#rpcServer.handleUpgrade(request, socket, head);
       })().catch((error: any) => {
         this.#logger.error({ error }, "Error upgrading connection");
