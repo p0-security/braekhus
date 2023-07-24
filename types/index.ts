@@ -24,3 +24,5 @@ export type ForwardedResponse = {
   statusText: string;
   data: any;
 };
+
+export type PublicKeyGetter = (clientId: string) => Promise<any | undefined>;

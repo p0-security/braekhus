@@ -1,5 +1,5 @@
+import { PublicKeyGetter } from "braekhus/types";
 import * as jose from "jose";
-import * as fs from "node:fs/promises";
 import pinoLogger from "pino";
 
 const AUTH_PATTERN = /Bearer (.*)/;
@@ -19,29 +19,24 @@ export class AuthorizationError extends Error {
   }
 }
 
-let CACHED_KEY: object | undefined = undefined;
-
-const ensureKey = async () => {
-  if (!CACHED_KEY) CACHED_KEY = await loadKey();
-  return CACHED_KEY;
-};
-
-const loadKey = async () => {
-  const jwk = await fs.readFile("jwk.public.json", { encoding: "utf-8" });
-  return JSON.parse(jwk);
-};
-
-// TODO support different auth per client
-export const validateAuth = async (authorization: string | undefined) => {
+export const validateAuth = async (
+  authorization: string | undefined,
+  publicKeyGetter: PublicKeyGetter
+) => {
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);
   if (!match || !match[1]) throw new AuthorizationError();
   const jwt = match[1];
-  const key = await ensureKey();
+  const clientId = jose.decodeJwt(jwt).sub;
+  logger.debug({ clientId }, "Validating client ID");
+  if (!clientId) {
+    throw new AuthorizationError();
+  }
+  const key = await publicKeyGetter(clientId);
   if (!key) throw new AuthorizationError();
   const jwk = await jose.importJWK(key as any, ALG);
   try {
-    await jose.jwtVerify(jwt, jwk);
+    await jose.jwtVerify(jwt, jwk, { subject: clientId, audience: "p0.dev" });
   } catch (error: any) {
     logger.warn("Error during verification", error.message);
     throw new AuthorizationError();

@@ -55,7 +55,7 @@ export class JsonRpcClient {
   }
 
   async create() {
-    const token = await jwt();
+    const token = await jwt(this.#clientId);
     const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
