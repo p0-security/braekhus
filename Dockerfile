@@ -7,16 +7,16 @@
 
 FROM node:18.15-alpine3.17
 
-WORKDIR /ts
+WORKDIR ./
 
 # Copy package.json and yarn.lock files
-COPY ts/package.json ts/yarn.lock ./
+COPY package.json yarn.lock ./
 RUN yarn install && yarn cache clean
 
 # Copy tsconfig.json and source files
 # It is very important to exclude node_modules folder from these COPY commands with .dockerignore.
 # Otherwise the node_modules folder created in the previous step with yarn install will be overwritten.
-COPY ts/ ./
+COPY . ./
 RUN yarn build
 
 # Run with unprivileged `node` user. The `node` user is defined in the base image.
