@@ -1,6 +1,6 @@
+import { PublicKeyGetter } from "braekhus/types";
 import * as jose from "jose";
 import pinoLogger from "pino";
-import { PublicKeyGetter } from "braekhus/types";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
