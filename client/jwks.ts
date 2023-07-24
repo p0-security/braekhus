@@ -30,7 +30,7 @@ const generateKey = async () => {
       encoding: "utf-8",
     }
   );
-  await fs.chmod(privateKeyFile(), "600");
+  await fs.chmod(privateKeyFile(), "400");
   await fs.writeFile(
     publicKeyFile(),
     JSON.stringify(await jose.exportJWK(publicKey), undefined, 2),
