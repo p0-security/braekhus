@@ -1,0 +1,39 @@
+on:
+  pull_request: {}
+  workflow_call:
+
+name: Test
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          token: ${{ secrets.READ_P0_REPOS }}
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ^20.4.0
+          cache: yarn
+          cache-dependency-path: |
+            yarn.lock
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: |
+          echo dir="$(yarn cache dir)" >> $GITHUB_OUTPUT
+          echo version="$(yarn cache dir)" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-backend-${{ steps.yarn-cache-dir-path.outputs.version }}-${{ hashFiles('**/yarn.lock') }}
+      - name: Yarn install
+        run: yarn install --ignore-engines --frozen-lockfile
+      - name: Yarn unit test
+        run: NODE_OPTIONS=--max-old-space-size=8192 yarn test -w1
+      - name: Yarn compile
+        run: yarn build
