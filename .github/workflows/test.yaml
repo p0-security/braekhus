@@ -34,6 +34,6 @@ jobs:
       - name: Yarn install
         run: yarn install --ignore-engines --frozen-lockfile
       - name: Yarn unit test
-        run: NODE_OPTIONS=--max-old-space-size=8192 yarn test -w1
+        run: NODE_OPTIONS=--max-old-space-size=8192 yarn test -w=1
       - name: Yarn compile
         run: yarn build
