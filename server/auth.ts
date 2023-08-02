@@ -1,4 +1,4 @@
-import { PublicKeyGetter } from "types";
+import { PublicKeyGetter } from "../types";
 import * as jose from "jose";
 import pinoLogger from "pino";
 
