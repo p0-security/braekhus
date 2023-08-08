@@ -11,7 +11,7 @@ import { ForwardedRequest, IncomingRequest } from "../types";
 
 const logger = createLogger({ name: "proxy" });
 
-const PATH = /\/client\/([a-zA-Z0-9-]+)(.*)/;
+const PATH = /\/client\/([^/]+)(.*)/;
 const PATH_REGEXP = pathToRegexp(PATH);
 
 export const httpProxyApp = (
