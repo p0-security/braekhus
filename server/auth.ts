@@ -39,7 +39,7 @@ export const validateAuth = async (
   try {
     await jose.jwtVerify(jwt, jwk, { subject: clientId, audience: "p0.dev" });
   } catch (error: any) {
-    logger.warn("Error during verification", error.message);
+    logger.error({ clientId, error }, "Error during verification");
     throw new AuthorizationError();
   }
 };
