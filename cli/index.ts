@@ -48,6 +48,12 @@ void yargs(hideBin(process.argv))
           demandOption: true,
           describe: "The clientId used to identify this client",
         })
+        .option("jwkPath", {
+          type: "string",
+          demandOption: true,
+          describe:
+            "The path to the directory on the file system where JWK is stored",
+        })
         .option("tunnelHost", {
           type: "string",
           demandOption: true,
@@ -67,13 +73,14 @@ void yargs(hideBin(process.argv))
       const {
         targetUrl,
         clientId,
+        jwkPath,
         tunnelHost: host,
         tunnelPort: port,
         insecure,
       } = args;
       const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
       const client = new JsonRpcClient(
-        { targetUrl, clientId },
+        { targetUrl, clientId, jwkPath },
         { host, port, insecure, backoff }
       );
       logger.info({ args }, "Running JSON-RPC client");

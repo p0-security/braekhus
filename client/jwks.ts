@@ -8,9 +8,9 @@ const ALG = "ES384"; // Elliptic curve with 384-bit SHA
 
 const logger = pinoLogger({ name: "jwks" });
 
-const loadKey = async () => {
+const loadKey = async (path: string) => {
   try {
-    const data = await fs.readFile(privateKeyFile(), {
+    const data = await fs.readFile(privateKeyFile(path), {
       encoding: "utf-8",
     });
     const key = jose.importJWK(JSON.parse(data));
@@ -21,18 +21,18 @@ const loadKey = async () => {
   }
 };
 
-const generateKey = async () => {
+const generateKey = async (path: string) => {
   const { publicKey, privateKey } = await jose.generateKeyPair(ALG);
   await fs.writeFile(
-    privateKeyFile(),
+    privateKeyFile(path),
     JSON.stringify(await jose.exportJWK(privateKey), undefined, 2),
     {
       encoding: "utf-8",
     }
   );
-  await fs.chmod(privateKeyFile(), "400");
+  await fs.chmod(privateKeyFile(path), "400");
   await fs.writeFile(
-    publicKeyFile(),
+    publicKeyFile(path),
     JSON.stringify(await jose.exportJWK(publicKey), undefined, 2),
     {
       encoding: "utf-8",
@@ -41,14 +41,14 @@ const generateKey = async () => {
   return privateKey;
 };
 
-const ensureKey = async () => {
-  const existing = await loadKey();
+const ensureKey = async (path: string) => {
+  const existing = await loadKey(path);
   if (existing) return existing;
-  return await generateKey();
+  return await generateKey(path);
 };
 
-export const jwt = async (clientId: string) => {
-  const key = await ensureKey();
+export const jwt = async (path: string, clientId: string) => {
+  const key = await ensureKey(path);
   const jwt = await new jose.SignJWT({ "tunnel-id": "my-tunnel-id" })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt(Math.floor(Date.now() * 1e-3))

@@ -24,6 +24,7 @@ export class JsonRpcClient {
   #targetUrl: string;
   #targetHostName: string;
   #clientId: string;
+  #jwkPath: string;
   #logger: Logger;
 
   #backoff?: Backoff;
@@ -32,7 +33,7 @@ export class JsonRpcClient {
   #isShutdown: boolean = false;
 
   constructor(
-    proxyConfig: { targetUrl: string; clientId: string },
+    proxyConfig: { targetUrl: string; clientId: string; jwkPath: string },
     tunnelConfig: {
       host: string;
       port: number;
@@ -41,10 +42,11 @@ export class JsonRpcClient {
     }
   ) {
     this.#logger = createLogger({ name: "JsonRpcClient" });
-    const { targetUrl, clientId } = proxyConfig;
+    const { targetUrl, clientId, jwkPath } = proxyConfig;
     this.#targetUrl = targetUrl;
     this.#targetHostName = new URL(targetUrl).hostname;
     this.#clientId = clientId;
+    this.#jwkPath = jwkPath;
     const { host, port, insecure, backoff } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
     this.#backoff = backoff;
@@ -69,7 +71,7 @@ export class JsonRpcClient {
   }
 
   async create() {
-    const token = await jwt(this.#clientId);
+    const token = await jwt(this.#jwkPath, this.#clientId);
     const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
