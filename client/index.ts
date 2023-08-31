@@ -52,6 +52,20 @@ export class JsonRpcClient {
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
     );
+
+    axios.interceptors.request.use((request) => {
+      this.#logger.debug({ request }, "Axios request");
+      return request;
+    });
+
+    axios.interceptors.response.use((response) => {
+      // Do not log response object, it's lengthy and difficult to filter out the authorization header
+      this.#logger.debug(
+        { response: omit(response, "request") },
+        "Axios response"
+      );
+      return response;
+    });
   }
 
   async create() {
@@ -115,20 +129,6 @@ export class JsonRpcClient {
     });
 
     this.#webSocket = clientSocket;
-
-    axios.interceptors.request.use((request) => {
-      this.#logger.debug({ request }, "Axios request");
-      return request;
-    });
-
-    axios.interceptors.response.use((response) => {
-      // Do not log response object, it's lengthy and difficult to filter out the authorization header
-      this.#logger.debug(
-        { response: omit(response, "request") },
-        "Axios response"
-      );
-      return response;
-    });
 
     client.addMethod("call", async (request: ForwardedRequest) => {
       this.#logger.debug({ request }, "forwarded request");
