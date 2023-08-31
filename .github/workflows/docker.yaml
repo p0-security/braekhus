@@ -24,9 +24,9 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: p0security/braekhus
-          flavor: |
-            latest=auto
-            prefix=v,onlatest=false
+          tags: |
+            type=raw,value=latest
+            type=sha
       - name: Build and push Docker image
         id: docker-build-and-push
         uses: docker/build-push-action@v4
