@@ -5,9 +5,9 @@
 # source: https://github.com/nodejs/docker-node/blob/0adf29a4daa744d828d23a8de4c4397dc43d5761/18/alpine3.17/Dockerfile
 # best practices: https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md
 
-FROM node:18.15-alpine3.17
+FROM node:18.17-bookworm
 
-WORKDIR ./
+WORKDIR /usr/src/app
 
 # Copy package.json and yarn.lock files
 COPY package.json yarn.lock ./
@@ -19,6 +19,4 @@ RUN yarn install && yarn cache clean
 COPY . ./
 RUN yarn build
 
-# Run with unprivileged `node` user. The `node` user is defined in the base image.
-USER node
 ENTRYPOINT ["yarn"]

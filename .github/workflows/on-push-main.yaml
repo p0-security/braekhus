@@ -1,0 +1,24 @@
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+name: Deploy
+
+# By setting the concurrency to a constant string value,
+# only one pipeline can run at the same time.
+# Pipeline from another merge will be in pending state until
+# the current pipeline finishes.
+# If yet another merge happens, the pending pipeline is cancelled.
+# (Only one pipeline is in pending state at any time)
+# See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency
+concurrency: main-deploy
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yaml
+
+  docker:
+    uses: ./.github/workflows/docker.yaml
+    secrets: inherit
+  
