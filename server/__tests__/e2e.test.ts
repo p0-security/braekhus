@@ -26,7 +26,11 @@ const runServer = (initContext?: InitContext) => {
 const runClient = async (waitUntilConnected?: boolean): Promise<Client> => {
   const httpServer = testHttpServer(TARGET_PORT);
   const jsonRpcClient = new JsonRpcClient(
-    { targetUrl: `http://localhost:${TARGET_PORT}`, clientId: "testClientId" },
+    {
+      targetUrl: `http://localhost:${TARGET_PORT}`,
+      clientId: "testClientId",
+      jwkPath: ".",
+    },
     {
       host: "localhost",
       port: SERVER_RPC_PORT,

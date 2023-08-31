@@ -1,2 +1,2 @@
-export const privateKeyFile = () => `jwk.private.json`;
-export const publicKeyFile = () => `jwk.public.json`;
+export const privateKeyFile = (path: string) => `${path}/jwk.private.json`;
+export const publicKeyFile = (path: string) => `${path}/jwk.public.json`;
