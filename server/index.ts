@@ -56,7 +56,7 @@ export const runApp = (appParams: {
       logger,
       customLogLevel: (_req, res) => {
         // Note that _req is undefined :[
-        return res.req.url === "/live" ? "debug" : "info";
+        return res.req.url === "/live" ? "trace" : "info";
       },
     })
   );
@@ -120,7 +120,7 @@ export class JsonRpcServer {
         const message = data.toString("utf-8");
         channel.receiveAndSend(JSON.parse(message));
       });
-      ws.on("pong", () => this.#logger.debug("pong"));
+      ws.on("pong", () => this.#logger.trace("pong"));
       ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
         onChannelClose(channelId);
@@ -259,7 +259,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     if (!channelId) {
       throw new Error(`Client not found: ${clientId}`);
     }
-    this.#logger.trace({ channelId, method, request }, "Calling");
+    this.#logger.debug({ channelId, method, request }, "Calling");
     return this.call(channelId, method, request);
   }
 
