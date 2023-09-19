@@ -12,8 +12,14 @@ import audit from "pino-http";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 import { RetryOptions, retryWithBackoff } from "../client/backoff";
+import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants";
 import { createLogger } from "../log";
-import { ForwardedResponse, PublicKeyGetter } from "../types";
+import {
+  CallOptions,
+  ForwardedRequestOptions,
+  ForwardedResponse,
+  PublicKeyGetter,
+} from "../types";
 import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
 import { ChannelNotFoundError } from "./error";
@@ -44,9 +50,17 @@ export type App = {
 export const runApp = (appParams: {
   appContext: AppContext;
   initContext?: InitContext;
+  callOptions?: CallOptions;
+  forwardedRequestOptions?: ForwardedRequestOptions;
   retryOptions?: RetryOptions;
 }): App => {
-  const { appContext, initContext, retryOptions } = appParams;
+  const {
+    appContext,
+    initContext,
+    callOptions,
+    forwardedRequestOptions,
+    retryOptions,
+  } = appParams;
   const { rpcPort, proxyPort } = appContext;
   const rpcHttpApp = express();
 
@@ -69,7 +83,11 @@ export const runApp = (appParams: {
     logger.info(`HTTP JSON RPC service listening on port ${rpcPort}`);
   });
   const jsonRpcApp = new JsonRpcApp(rpcHttpServer, ensureKey, initContext);
-  const expressApp = httpProxyApp(jsonRpcApp.getRpcServer(), retryOptions);
+  const expressApp = httpProxyApp(jsonRpcApp.getRpcServer(), {
+    callOptions,
+    retryOptions,
+    forwardedRequestOptions,
+  });
   const expressHttpServer = expressApp.listen(proxyPort, () => {
     logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
   });
@@ -150,7 +168,8 @@ export class JsonRpcServer {
   async call(
     channelId: ChannelId,
     method: string,
-    request: any
+    request: any,
+    options?: CallOptions
   ): Promise<ForwardedResponse> {
     const requestId = randomUUID();
     this.#logger.debug(
@@ -162,22 +181,26 @@ export class JsonRpcServer {
       throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
     }
     const deferred = deferral<any>();
-    channel.request(method, request).then(
-      (response) => {
-        this.#logger.debug(
-          { requestId, channelId, method, response },
-          "RPC response"
-        );
-        deferred.resolve(response);
-      },
-      (reason) => {
-        this.#logger.error(
-          { requestId, channelId, method, reason },
-          "RPC response"
-        );
-        deferred.reject(reason);
-      }
-    );
+    channel
+      // This throws an {"type": "JSONRPCErrorException", "message": "Request timeout"} error if the timeout is reached
+      .timeout(options?.timeoutMillis ?? DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS)
+      .request(method, request)
+      .then(
+        (response) => {
+          this.#logger.debug(
+            { requestId, channelId, method, response },
+            "RPC response"
+          );
+          deferred.resolve(response);
+        },
+        (reason) => {
+          this.#logger.error(
+            { requestId, channelId, method, reason },
+            "RPC response"
+          );
+          deferred.reject(reason);
+        }
+      );
     return deferred.promise;
   }
 
@@ -254,27 +277,33 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     this.removeChannel(channelId);
   }
 
-  async #callClient(method: string, request: any, clientId: ClientId) {
+  async #callClient(
+    method: string,
+    request: any,
+    clientId: ClientId,
+    callOptions?: CallOptions
+  ) {
     const channelId = this.#channelIds.get(clientId);
     if (!channelId) {
       throw new Error(`Client not found: ${clientId}`);
     }
     this.#logger.debug({ channelId, method, request }, "Calling");
-    return this.call(channelId, method, request);
+    return this.call(channelId, method, request, callOptions);
   }
 
   async callClientWithRetry(
     method: string,
     request: any,
     clientId: ClientId,
+    callOptions?: CallOptions,
     retryOptions?: RetryOptions
   ) {
     if (retryOptions) {
       return await retryWithBackoff(retryOptions, () =>
-        this.#callClient(method, request, clientId)
+        this.#callClient(method, request, clientId, callOptions)
       );
     }
-    return this.#callClient(method, request, clientId);
+    return this.#callClient(method, request, clientId, callOptions);
   }
 }
 

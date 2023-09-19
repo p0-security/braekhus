@@ -25,10 +25,17 @@ void yargs(hideBin(process.argv))
           demandOption: true,
           describe:
             "The port where the server should listen for incoming HTTP requests",
+        })
+        .option("timeout", {
+          type: "number",
+          demandOption: false,
+          describe:
+            "Timeout that is forwarded to the proxy client to use when requesting downstream resource",
         }),
     (args) => {
       runApp({
         appContext: args,
+        forwardedRequestOptions: { timeoutMillis: args.timeout },
         retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
       });
     }
