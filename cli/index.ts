@@ -26,7 +26,7 @@ void yargs(hideBin(process.argv))
           describe:
             "The port where the server should listen for incoming HTTP requests",
         })
-        .option("timeout", {
+        .option("proxyTimeout", {
           type: "number",
           demandOption: false,
           describe:
@@ -35,7 +35,7 @@ void yargs(hideBin(process.argv))
     (args) => {
       runApp({
         appContext: args,
-        forwardedRequestOptions: { timeoutMillis: args.timeout },
+        forwardedRequestOptions: { timeoutMillis: args.proxyTimeout },
         retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
       });
     }

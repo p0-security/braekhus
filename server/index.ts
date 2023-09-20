@@ -20,7 +20,6 @@ import {
   ForwardedResponse,
   PublicKeyGetter,
 } from "../types";
-import { deferral } from "../util/deferral";
 import { validateAuth } from "./auth";
 import { ChannelNotFoundError } from "./error";
 import { ensureKey } from "./key-cache";
@@ -180,28 +179,25 @@ export class JsonRpcServer {
     if (!channel) {
       throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
     }
-    const deferred = deferral<any>();
-    channel
-      // This throws an {"type": "JSONRPCErrorException", "message": "Request timeout"} error if the timeout is reached
-      .timeout(options?.timeoutMillis ?? DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS)
-      .request(method, request)
-      .then(
-        (response) => {
-          this.#logger.debug(
-            { requestId, channelId, method, response },
-            "RPC response"
-          );
-          deferred.resolve(response);
-        },
-        (reason) => {
-          this.#logger.error(
-            { requestId, channelId, method, reason },
-            "RPC response"
-          );
-          deferred.reject(reason);
-        }
+    try {
+      const response = await channel
+        // This throws an {"type": "JSONRPCErrorException", "message": "Request timeout"} error if the timeout is reached
+        .timeout(
+          options?.timeoutMillis ?? DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS
+        )
+        .request(method, request);
+      this.#logger.debug(
+        { requestId, channelId, method, response },
+        "RPC response"
       );
-    return deferred.promise;
+      return response;
+    } catch (error) {
+      this.#logger.error(
+        { requestId, channelId, method, error },
+        "RPC response"
+      );
+      throw error;
+    }
   }
 
   shutdown() {
