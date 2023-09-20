@@ -8,6 +8,7 @@ import { omit } from "lodash";
 import { Logger } from "pino";
 import WebSocket from "ws";
 
+import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
 import { createLogger } from "../log";
 import { ForwardedRequest, ForwardedResponse } from "../types";
 import { deferral } from "../util/deferral";
@@ -148,6 +149,9 @@ export class JsonRpcClient {
         params: request.params,
         data: request.data,
         validateStatus: () => true, // do not throw, we return all status codes
+        timeout:
+          request.options?.timeoutMillis ||
+          DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
       });
       return {
         headers: response.headers,

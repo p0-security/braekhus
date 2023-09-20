@@ -7,7 +7,12 @@ import audit from "pino-http";
 import { RetryOptions } from "../client/backoff";
 import { createLogger } from "../log";
 import { RemoteClientRpcServer } from "../server";
-import { ForwardedRequest, IncomingRequest } from "../types";
+import {
+  CallOptions,
+  ForwardedRequest,
+  ForwardedRequestOptions,
+  IncomingRequest,
+} from "../types";
 
 const logger = createLogger({ name: "proxy" });
 
@@ -16,7 +21,11 @@ const PATH_REGEXP = pathToRegexp(PATH);
 
 export const httpProxyApp = (
   rpcServer: RemoteClientRpcServer,
-  retryOptions?: RetryOptions
+  options?: {
+    callOptions?: CallOptions;
+    forwardedRequestOptions?: ForwardedRequestOptions;
+    retryOptions?: RetryOptions;
+  }
 ) => {
   const app = express();
   app.use(audit({ logger }));
@@ -42,6 +51,7 @@ export const httpProxyApp = (
       method: req.method,
       params: req.query,
       data: req.body,
+      options: options?.forwardedRequestOptions,
     };
     logger.debug({ request }, "forwarded request");
     try {
@@ -49,7 +59,8 @@ export const httpProxyApp = (
         "call",
         request,
         clientId,
-        retryOptions
+        options?.callOptions,
+        options?.retryOptions
       );
       const isChunked =
         response.headers["transfer-encoding"]?.trim() === "chunked";
@@ -71,7 +82,16 @@ export const httpProxyApp = (
       }
     } catch (e: any) {
       logger.error({ error: e }, "error handling request");
-      res.sendStatus(502);
+      if (
+        // Timeout waiting for response on the the websocket channel
+        e.message === "Request timeout" ||
+        // Timeout in axios client from proxy to target service (e.g. Kubernetes API server) - "timeout of 1000ms exceeded"
+        (e.message.startsWith("timeout") && e.message.endsWith("exceeded"))
+      ) {
+        res.sendStatus(504);
+      } else {
+        res.sendStatus(502);
+      }
     }
   });
 

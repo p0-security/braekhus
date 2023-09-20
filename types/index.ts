@@ -10,12 +10,21 @@ export type IncomingRequest = Request<
   Record<string, any>
 >;
 
+export type ForwardedRequestOptions = {
+  timeoutMillis?: number;
+};
+
+export type CallOptions = {
+  timeoutMillis?: number;
+};
+
 export type ForwardedRequest = {
   headers: IncomingHttpHeaders;
   method: string;
   path: string;
   params: qs.ParsedQs;
   data: any;
+  options?: ForwardedRequestOptions;
 };
 
 export type ForwardedResponse = {
