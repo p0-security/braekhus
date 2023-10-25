@@ -122,6 +122,6 @@ describe("json path filter", () => {
       "{ headers: .headers, status: .status, statusText: .statusText, data: { kind: .data.kind, items: [.data.items[] | { metadata: { name: .metadata.name } }] } }"
     );
 
-    expect(result).toEqual(["admin", "aws-node"]);
+    expect(result).toMatchSnapshot();
   });
 });

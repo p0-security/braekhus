@@ -1,0 +1,32 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`json path filter returns only selected fields 1`] = `
+{
+  "data": {
+    "items": [
+      {
+        "metadata": {
+          "name": "admin",
+        },
+      },
+      {
+        "metadata": {
+          "name": "aws-node",
+        },
+      },
+    ],
+    "kind": "ClusterRoleList",
+  },
+  "headers": {
+    "audit-id": "6a816d03-d29f-4657-b624-35766c8a5572",
+    "cache-control": "no-cache, private",
+    "content-type": "application/json",
+    "date": "Wed, 25 Oct 2023 06:08:30 GMT",
+    "transfer-encoding": "chunked",
+    "x-kubernetes-pf-flowschema-uid": "ef7c3d21-4649-422d-a4fa-e5b85d52f141",
+    "x-kubernetes-pf-prioritylevel-uid": "a6704cd4-c4fb-48bb-982e-a1ed79bfb12d",
+  },
+  "status": 200,
+  "statusText": "OK",
+}
+`;
