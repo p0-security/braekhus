@@ -1,5 +1,6 @@
-import { createLogger } from "../log";
 import { isArray } from "lodash";
+
+import { createLogger } from "../log";
 
 const logger = createLogger({ name: "filter" });
 

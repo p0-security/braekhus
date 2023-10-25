@@ -1,10 +1,3 @@
-import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
-import { createLogger } from "../log";
-import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
-import { deferral } from "../util/deferral";
-import { Backoff } from "./backoff";
-import { jpFilter as jqFilter } from "./filter";
-import { jwt } from "./jwks";
 import axios from "axios";
 import {
   JSONRPCClient,
@@ -14,6 +7,14 @@ import {
 import { isArray, omit } from "lodash";
 import { Logger } from "pino";
 import WebSocket from "ws";
+
+import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
+import { createLogger } from "../log";
+import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
+import { deferral } from "../util/deferral";
+import { Backoff } from "./backoff";
+import { jpFilter as jqFilter } from "./filter";
+import { jwt } from "./jwks";
 
 /**
  * Bi-directional JSON RPC client
