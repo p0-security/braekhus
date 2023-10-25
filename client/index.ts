@@ -4,15 +4,16 @@ import {
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
-import { omit } from "lodash";
+import { isArray, omit } from "lodash";
 import { Logger } from "pino";
 import WebSocket from "ws";
 
 import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
 import { createLogger } from "../log";
-import { ForwardedRequest, ForwardedResponse } from "../types";
+import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
 import { deferral } from "../util/deferral";
 import { Backoff } from "./backoff";
+import { jpFilter as jqFilter } from "./filter";
 import { jwt } from "./jwks";
 
 /**
@@ -62,7 +63,7 @@ export class JsonRpcClient {
     });
 
     axios.interceptors.response.use((response) => {
-      // Do not log response object, it's lengthy and difficult to filter out the authorization header
+      // Do not log request object, it's lengthy and difficult to filter out the authorization header
       this.#logger.debug(
         { response: omit(response, "request") },
         "Axios response"
@@ -153,11 +154,15 @@ export class JsonRpcClient {
           request.options?.timeoutMillis ||
           DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
       });
+      const jpSelectHeader = request.headers[JQ_HEADER];
+      this.#logger.debug({ response }, "forwarded response before filters");
+      const data = await jqFilter(response.data, jpSelectHeader);
+      this.#logger.debug({ data }, "forwarded response data after filters");
       return {
         headers: response.headers,
         status: response.status,
         statusText: response.statusText,
-        data: response.data,
+        data,
       } as ForwardedResponse;
     });
 

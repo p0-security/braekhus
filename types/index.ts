@@ -2,6 +2,8 @@ import { Request } from "express";
 import core from "express-serve-static-core";
 import { IncomingHttpHeaders } from "node:http";
 
+export const JQ_HEADER = "x-braekhus-jq";
+
 export type IncomingRequest = Request<
   core.ParamsDictionary,
   any,
