@@ -1,16 +1,3 @@
-import express, { Express } from "express";
-import { IncomingMessage, Server, ServerResponse } from "http";
-import {
-  JSONRPCClient,
-  JSONRPCServer,
-  JSONRPCServerAndClient,
-} from "json-rpc-2.0";
-import { randomUUID } from "node:crypto";
-import { Duplex } from "node:stream";
-import { Logger } from "pino";
-import audit from "pino-http";
-import { ServerOptions, WebSocket, WebSocketServer } from "ws";
-
 import { RetryOptions, retryWithBackoff } from "../client/backoff";
 import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants";
 import { createLogger } from "../log";
@@ -25,6 +12,18 @@ import { ChannelNotFoundError } from "./error";
 import { ensureKey } from "./key-cache";
 import { httpProxyApp } from "./proxy";
 import { httpError } from "./util";
+import express, { Express } from "express";
+import { IncomingMessage, Server, ServerResponse } from "http";
+import {
+  JSONRPCClient,
+  JSONRPCServer,
+  JSONRPCServerAndClient,
+} from "json-rpc-2.0";
+import { randomUUID } from "node:crypto";
+import { Duplex } from "node:stream";
+import { Logger } from "pino";
+import audit from "pino-http";
+import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 const logger = createLogger({ name: "server" });
 

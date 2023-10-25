@@ -1,3 +1,10 @@
+import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
+import { createLogger } from "../log";
+import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
+import { deferral } from "../util/deferral";
+import { Backoff } from "./backoff";
+import { jpFilter as jqFilter } from "./filter";
+import { jwt } from "./jwks";
 import axios from "axios";
 import {
   JSONRPCClient,
@@ -7,14 +14,6 @@ import {
 import { isArray, omit } from "lodash";
 import { Logger } from "pino";
 import WebSocket from "ws";
-
-import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
-import { createLogger } from "../log";
-import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
-import { deferral } from "../util/deferral";
-import { Backoff } from "./backoff";
-import { jpFilter as jqFilter } from "./filter";
-import { jwt } from "./jwks";
 
 /**
  * Bi-directional JSON RPC client
@@ -63,11 +62,7 @@ export class JsonRpcClient {
     });
 
     axios.interceptors.response.use((response) => {
-      // Do not log request object, it's lengthy and difficult to filter out the authorization header
-      this.#logger.debug(
-        { response: omit(response, "request") },
-        "Axios response"
-      );
+      this.#logger.debug({ response }, "Axios response");
       return response;
     });
   }
@@ -135,7 +130,15 @@ export class JsonRpcClient {
     this.#webSocket = clientSocket;
 
     client.addMethod("call", async (request: ForwardedRequest) => {
-      this.#logger.debug({ request }, "forwarded request");
+      this.#logger.debug(
+        {
+          request: {
+            ...request,
+            headers: omit(request.headers, "authorization"),
+          },
+        },
+        "forwarded request"
+      );
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
