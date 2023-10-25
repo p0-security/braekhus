@@ -1,4 +1,4 @@
-import { jpFilter as jqFilter } from "client/filter";
+import { jpFilter as jqFilter } from "../filter";
 
 const exampleResponse = {
   status: 200,
