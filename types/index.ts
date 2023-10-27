@@ -2,7 +2,7 @@ import { Request } from "express";
 import core from "express-serve-static-core";
 import { IncomingHttpHeaders } from "node:http";
 
-export const JQ_HEADER = "braekhus-jq-response-transform";
+export const JQ_HEADER = "braekhus-response-jq-transform";
 
 export type IncomingRequest = Request<
   core.ParamsDictionary,
