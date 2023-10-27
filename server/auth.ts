@@ -26,15 +26,22 @@ export const validateAuth = async (
 ) => {
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);
-  if (!match || !match[1]) throw new AuthorizationError();
+  if (!match || !match[1]) {
+    logger.error("Bearer token not found");
+    throw new AuthorizationError();
+  }
   const jwt = match[1];
   const clientId = jose.decodeJwt(jwt).sub;
   logger.debug({ clientId }, "Validating client ID");
   if (!clientId) {
+    logger.error({ clientId }, "Client ID not found");
     throw new AuthorizationError();
   }
   const key = await publicKeyGetter(clientId);
-  if (!key) throw new AuthorizationError();
+  if (!key) {
+    logger.error({ clientId }, "Public key not found");
+    throw new AuthorizationError();
+  }
   const jwk = await jose.importJWK(key as any, ALG);
   try {
     await jose.jwtVerify(jwt, jwk, { subject: clientId, audience: "p0.dev" });
