@@ -1,0 +1,114 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`json path filter returns only selected fields 1`] = `
+{
+  "data": {
+    "items": [
+      {
+        "metadata": {
+          "name": "admin",
+        },
+      },
+      {
+        "metadata": {
+          "name": "aws-node",
+        },
+      },
+    ],
+    "kind": "ClusterRoleList",
+  },
+  "status": 200,
+}
+`;
+
+exports[`json path filter returns original input data on error 1`] = `
+{
+  "data": {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "items": [
+      {
+        "metadata": {
+          "managedFields": [
+            {
+              "manager": "clusterrole-aggregation-controller",
+              "operation": "Apply",
+            },
+            {
+              "manager": "kube-apiserver",
+              "operation": "Update",
+            },
+          ],
+          "name": "admin",
+          "resourceVersion": "345",
+          "uid": "4251609f-b3ca-4875-8ec6-76b40ab62748",
+        },
+      },
+      {
+        "metadata": {
+          "managedFields": [
+            {
+              "manager": "kubectl-client-side-apply",
+              "operation": "Update",
+            },
+          ],
+          "name": "aws-node",
+          "resourceVersion": "273",
+          "uid": "63a3bed8-a750-440d-bca9-b5f41c8786c2",
+        },
+      },
+    ],
+    "kind": "ClusterRoleList",
+    "metadata": {
+      "resourceVersion": "4423772",
+    },
+  },
+  "status": 200,
+  "statusText": "OK",
+}
+`;
+
+exports[`json path filter returns original input data when no filter supplied 1`] = `
+{
+  "data": {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "items": [
+      {
+        "metadata": {
+          "managedFields": [
+            {
+              "manager": "clusterrole-aggregation-controller",
+              "operation": "Apply",
+            },
+            {
+              "manager": "kube-apiserver",
+              "operation": "Update",
+            },
+          ],
+          "name": "admin",
+          "resourceVersion": "345",
+          "uid": "4251609f-b3ca-4875-8ec6-76b40ab62748",
+        },
+      },
+      {
+        "metadata": {
+          "managedFields": [
+            {
+              "manager": "kubectl-client-side-apply",
+              "operation": "Update",
+            },
+          ],
+          "name": "aws-node",
+          "resourceVersion": "273",
+          "uid": "63a3bed8-a750-440d-bca9-b5f41c8786c2",
+        },
+      },
+    ],
+    "kind": "ClusterRoleList",
+    "metadata": {
+      "resourceVersion": "4423772",
+    },
+  },
+  "status": 200,
+  "statusText": "OK",
+}
+`;

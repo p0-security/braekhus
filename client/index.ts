@@ -4,15 +4,16 @@ import {
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
-import { omit } from "lodash";
+import { isArray, omit } from "lodash";
 import { Logger } from "pino";
 import WebSocket from "ws";
 
 import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
 import { createLogger } from "../log";
-import { ForwardedRequest, ForwardedResponse } from "../types";
+import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
 import { deferral } from "../util/deferral";
 import { Backoff } from "./backoff";
+import { jqTransform } from "./filter";
 import { jwt } from "./jwks";
 
 /**
@@ -62,11 +63,7 @@ export class JsonRpcClient {
     });
 
     axios.interceptors.response.use((response) => {
-      // Do not log response object, it's lengthy and difficult to filter out the authorization header
-      this.#logger.debug(
-        { response: omit(response, "request") },
-        "Axios response"
-      );
+      this.#logger.debug({ response }, "Axios response");
       return response;
     });
   }
@@ -134,7 +131,15 @@ export class JsonRpcClient {
     this.#webSocket = clientSocket;
 
     client.addMethod("call", async (request: ForwardedRequest) => {
-      this.#logger.debug({ request }, "forwarded request");
+      this.#logger.debug(
+        {
+          request: {
+            ...request,
+            headers: omit(request.headers, "authorization"),
+          },
+        },
+        "forwarded request"
+      );
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
@@ -153,11 +158,18 @@ export class JsonRpcClient {
           request.options?.timeoutMillis ||
           DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
       });
+      const jpSelectHeader = request.headers[JQ_HEADER];
+      this.#logger.debug({ response }, "forwarded response before filters");
+      const data = await jqTransform(response.data, jpSelectHeader);
+      this.#logger.debug(
+        { response: data },
+        "forwarded response data after filters"
+      );
       return {
         headers: response.headers,
         status: response.status,
         statusText: response.statusText,
-        data: response.data,
+        data,
       } as ForwardedResponse;
     });
 
