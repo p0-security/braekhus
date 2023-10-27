@@ -4,10 +4,13 @@ import { createLogger } from "../log";
 
 const logger = createLogger({ name: "filter" });
 
-// jq-node doesn't support `import` syntax
+// import { jq } from "node-jq";
+// TODO fix node config because jq-node cannot be imported with the `import` syntax above
+// Error:
+// Module '"node-jq"' has no exported member 'jq'.
 const jq = require("node-jq");
 
-export const jpFilter = async (
+export const jqTransform = async (
   data: any,
   jqHeader: string | string[] | undefined
 ): Promise<any> => {
@@ -16,7 +19,6 @@ export const jpFilter = async (
     return data;
   }
   try {
-    // jq.run() returns a Promise
     return await jq.run(query, data, { input: "json", output: "json" });
   } catch (error: any) {
     logger.error(

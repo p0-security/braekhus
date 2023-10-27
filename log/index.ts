@@ -24,6 +24,7 @@ export const createLogger = <T extends LoggerOptions>(
       "response.config.headers.authorization", // Axios intercepted response object
       "response.request.headers.authorization", // Axios intercepted response object contains the request as well
       "request.headers.authorization", // Axios intercepted request object + forwarded request object (JSON RPC request)
+      "headers.authorization",
     ],
     formatters: {
       level: (label) => {

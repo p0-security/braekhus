@@ -13,7 +13,7 @@ import { createLogger } from "../log";
 import { ForwardedRequest, ForwardedResponse, JQ_HEADER } from "../types";
 import { deferral } from "../util/deferral";
 import { Backoff } from "./backoff";
-import { jpFilter as jqFilter } from "./filter";
+import { jqTransform } from "./filter";
 import { jwt } from "./jwks";
 
 /**
@@ -160,8 +160,11 @@ export class JsonRpcClient {
       });
       const jpSelectHeader = request.headers[JQ_HEADER];
       this.#logger.debug({ response }, "forwarded response before filters");
-      const data = await jqFilter(response.data, jpSelectHeader);
-      this.#logger.debug({ data }, "forwarded response data after filters");
+      const data = await jqTransform(response.data, jpSelectHeader);
+      this.#logger.debug(
+        { response: data },
+        "forwarded response data after filters"
+      );
       return {
         headers: response.headers,
         status: response.status,

@@ -1,4 +1,4 @@
-import { jpFilter as jqFilter } from "../filter";
+import { jqTransform } from "../filter";
 
 const exampleResponse = {
   status: 200,
@@ -46,7 +46,7 @@ const exampleResponse = {
 
 describe("json path filter", () => {
   it("returns only selected fields", async () => {
-    const result = await jqFilter(
+    const result = await jqTransform(
       exampleResponse,
       "{ status: .status, data: { kind: .data.kind, items: [.data.items[] | { metadata: { name: .metadata.name } }] } }"
     );
@@ -56,13 +56,13 @@ describe("json path filter", () => {
 
   describe("returns original input data", () => {
     it("on error", async () => {
-      const result = await jqFilter(exampleResponse, "{ { }");
+      const result = await jqTransform(exampleResponse, "{ { }");
 
       expect(result).toMatchSnapshot();
     });
 
     it("when no filter supplied", async () => {
-      const result = await jqFilter(exampleResponse, undefined);
+      const result = await jqTransform(exampleResponse, undefined);
 
       expect(result).toMatchSnapshot();
     });
