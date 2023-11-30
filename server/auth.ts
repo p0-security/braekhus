@@ -20,6 +20,7 @@ export class AuthorizationError extends Error {
   }
 }
 
+// Errors would be logged on every attempt from the braekhus proxy to connect, only log with debug level
 export const validateAuth = async (
   authorization: string | undefined,
   publicKeyGetter: PublicKeyGetter
@@ -27,26 +28,26 @@ export const validateAuth = async (
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);
   if (!match || !match[1]) {
-    logger.error("Bearer token not found");
+    logger.debug("Bearer token not found");
     throw new AuthorizationError();
   }
   const jwt = match[1];
   const clientId = jose.decodeJwt(jwt).sub;
   logger.debug({ clientId }, "Validating client ID");
   if (!clientId) {
-    logger.error({ clientId }, "Client ID not found");
+    logger.debug({ clientId }, "Client ID not found");
     throw new AuthorizationError();
   }
   const key = await publicKeyGetter(clientId);
   if (!key) {
-    logger.error({ clientId }, "Public key not found");
+    logger.debug({ clientId }, "Public key not found");
     throw new AuthorizationError();
   }
   const jwk = await jose.importJWK(key as any, ALG);
   try {
     await jose.jwtVerify(jwt, jwk, { subject: clientId, audience: "p0.dev" });
   } catch (error: any) {
-    logger.error({ clientId, error }, "Error during verification");
+    logger.debug({ clientId, error }, "Error during verification");
     throw new AuthorizationError();
   }
 };

@@ -65,7 +65,7 @@ export const retryWithBackoff = async <T>(
           return;
         }
         const timeout = backoff.next();
-        logger.info(
+        logger.debug(
           { nextTimeout: timeout, count, error: e },
           "Retrying with backoff timeout"
         );
