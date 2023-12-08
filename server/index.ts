@@ -263,7 +263,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
 
   onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
     channel.addMethod("setClientId", ({ clientId }) => {
-      this.#logger.info({ channelId, clientId }, "Setting client ID");
+      this.#logger.debug({ channelId, clientId }, "Setting client ID");
       this.addChannel(channelId, clientId);
       return { ok: true };
     });
@@ -325,7 +325,8 @@ export class JsonRpcApp {
         await validateAuth(request.headers.authorization, publicKeyGetter);
         this.#rpcServer.handleUpgrade(request, socket, head);
       })().catch((error: any) => {
-        this.#logger.error({ error }, "Error upgrading connection");
+        // Logged on every attempt from the braekhus proxy to connect, only log with debug level
+        this.#logger.debug({ error }, "Error upgrading connection");
         const body = JSON.stringify({ error }, undefined, 2);
         const code = error.code ?? 500;
         const reason = error.reason ?? "Internal Server Error";
