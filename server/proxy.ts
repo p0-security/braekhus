@@ -28,7 +28,7 @@ export const httpProxyApp = (
   }
 ) => {
   const app = express();
-  app.use(audit({ logger }));
+  app.use(audit({ logger, useLevel: "debug" }));
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
   app.use(express.json());
