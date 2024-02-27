@@ -80,13 +80,14 @@ export const httpProxyApp = (
       } else {
         res.status(response.status).send(response.data);
       }
-    } catch (e: any) {
-      logger.error({ error: e }, "error handling request");
+    } catch (error: any) {
+      logger.error({ error, spammy: true }, "Error handling request");
       if (
         // Timeout waiting for response on the the websocket channel
-        e.message === "Request timeout" ||
+        error.message === "Request timeout" ||
         // Timeout in axios client from proxy to target service (e.g. Kubernetes API server) - "timeout of 1000ms exceeded"
-        (e.message.startsWith("timeout") && e.message.endsWith("exceeded"))
+        (error.message.startsWith("timeout") &&
+          error.message.endsWith("exceeded"))
       ) {
         res.sendStatus(504);
       } else {
