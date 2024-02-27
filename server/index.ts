@@ -142,7 +142,7 @@ export class JsonRpcServer {
       ws.on("close", () => {
         onChannelClose(channelId);
         this.#channels.delete(channelId);
-        this.#logger.info({ channelId }, "Channel closed");
+        this.#logger.debug({ channelId }, "Channel closed");
       });
 
       this.#channels.set(channelId, channel);
@@ -193,7 +193,7 @@ export class JsonRpcServer {
       return response;
     } catch (error) {
       this.#logger.error(
-        { requestId, channelId, method, error },
+        { requestId, channelId, method, error, spammy: true },
         "RPC response"
       );
       throw error;
