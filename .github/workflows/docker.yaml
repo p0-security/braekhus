@@ -7,6 +7,8 @@ on:
 
 name: Publish Docker image
 
+# The job definitions are copied with minimal changes from the Docker documentation: https://docs.docker.com/build/ci/github-actions/multi-platform/
+
 jobs:
   docker-build-and-push:
     name: Push Docker image to Docker Hub
@@ -61,6 +63,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # From each platform job in the matrix of jobs in docker-build-and-push, we get the tags (descriptors)
+  # that were uploaded as artifacts and merge them into a single metadata json.
+  # This job only needs to execute once after all platform builds are completed.
   merge-descriptors:
     name: Merge descriptors
     runs-on: ubuntu-latest
