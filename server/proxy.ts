@@ -78,7 +78,7 @@ export const httpProxyApp = (
         // See See https://nodejs.org/api/stream.html#readablepipedestination-options
         stream.pipe(res);
       } else {
-        res.status(response.status).json(response.data);
+        res.status(response.status).send(response.data);
       }
     } catch (error: any) {
       logger.error({ error, spammy: true }, "Error handling request");
@@ -89,9 +89,9 @@ export const httpProxyApp = (
         (error.message.startsWith("timeout") &&
           error.message.endsWith("exceeded"))
       ) {
-        res.status(504).json({ error });
+        res.status(504).json({ error, message: String(error) });
       } else {
-        res.status(502).json({ error });
+        res.status(502).json({ error, message: String(error) });
       }
     }
   });

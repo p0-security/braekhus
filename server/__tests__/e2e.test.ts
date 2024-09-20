@@ -7,9 +7,9 @@ import { JsonRpcClient } from "../../client";
 import { Backoff } from "../../client/backoff";
 import { testHttpServer } from "../testing/testExpressApp";
 
-const SERVER_RPC_PORT = 8080;
-const SERVER_PROXY_PORT = 8081;
-const TARGET_PORT = 8082;
+const SERVER_RPC_PORT = 18080;
+const SERVER_PROXY_PORT = 18081;
+const TARGET_PORT = 18082;
 
 type Client = {
   jsonRpcClient: JsonRpcClient;
@@ -78,7 +78,7 @@ describe("Proxy server starts up first", () => {
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
-          text: "Bad Gateway",
+          text: '{"error":{"type":"channel_not_found"},"message":"Error: Channel not found: testChannelId"}',
         })
       );
     });
@@ -89,7 +89,7 @@ describe("Proxy server starts up first", () => {
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
-          text: "Bad Gateway",
+          text: '{"error":{},"message":"Error: Client not found: noSuchClientId"}',
         })
       );
     });
