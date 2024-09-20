@@ -40,7 +40,7 @@ export const httpProxyApp = (
     const matches = PATH_REGEXP.exec(req.path);
     logger.debug({ matches }, "path matches");
     if (matches === null || matches.length !== 3) {
-      res.sendStatus(400);
+      res.status(404).json({ error: "Invalid path format" });
     }
 
     const clientId = (matches as string[])[1];
@@ -89,9 +89,9 @@ export const httpProxyApp = (
         (error.message.startsWith("timeout") &&
           error.message.endsWith("exceeded"))
       ) {
-        res.sendStatus(504);
+        res.status(504).json({ error, message: String(error) });
       } else {
-        res.sendStatus(502);
+        res.status(502).json({ error, message: String(error) });
       }
     }
   });
