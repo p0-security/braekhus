@@ -73,9 +73,12 @@ export const runApp = (appParams: {
       },
     })
   );
+  rpcHttpApp.get("/", (_req, res) => {
+    res.send("root");
+  });
 
   rpcHttpApp.get("/live", (_req, res) => {
-    return res.status(200).json({ message: "OK" });
+    res.status(200).json({ message: "OK" });
   });
 
   const rpcHttpServer = rpcHttpApp.listen(rpcPort, () => {
@@ -100,7 +103,7 @@ export class JsonRpcServer {
   #serverSocket: WebSocketServer;
   #channels: Map<ChannelId, JSONRPCServerAndClient<void, void>> = new Map();
   #logger: Logger;
-  #intervalTimer: NodeJS.Timer;
+  #intervalTimer: NodeJS.Timeout;
 
   constructor(
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,

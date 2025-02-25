@@ -8,9 +8,7 @@ import {
 /**
  *  Logger with error serializer and levels displayed as text
  */
-export const createLogger = <T extends LoggerOptions>(
-  options: T
-): Logger<T> => {
+export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
   const logger = pinoLogger({
     ...options,
     name: `braekhus.${options.name}`,
