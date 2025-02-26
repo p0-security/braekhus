@@ -53,6 +53,11 @@
     "ws": "^8.18.1",
     "yargs": "^17.7.2"
   },
+  "resolutions": {
+    "strip-ansi": "npm:strip-ansi@^6.0.1",
+    "string-width": "npm:string-width@^4.2.3",
+    "wrap-ansi": "npm:wrap-ansi@^7.0.0"
+  },
   "scripts": {
     "build": "yarn clean && tsc --project ./",
     "clean": "rm -rf ./dist",
