@@ -1,7 +1,6 @@
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash";
-import { pathToRegexp } from "path-to-regexp";
 import audit from "pino-http";
 
 import { RetryOptions } from "../client/backoff";
@@ -16,8 +15,7 @@ import {
 
 const logger = createLogger({ name: "proxy" });
 
-const PATH = /\/client\/([^/]+)(.*)/;
-const PATH_REGEXP = pathToRegexp(PATH);
+const PATH_REGEXP = /\/client\/([^/]+)(.*)/;
 
 export const httpProxyApp = (
   rpcServer: RemoteClientRpcServer,
@@ -36,7 +34,7 @@ export const httpProxyApp = (
   app.use(express.text());
   app.use(express.raw());
 
-  app.all(PATH, async (req: IncomingRequest, res) => {
+  app.all(PATH_REGEXP, async (req: IncomingRequest, res) => {
     const matches = PATH_REGEXP.exec(req.path);
     logger.debug({ matches }, "path matches");
     if (matches === null || matches.length !== 3) {
