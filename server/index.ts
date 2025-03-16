@@ -62,7 +62,7 @@ export const runApp = (appParams: {
   } = appParams;
   const { rpcPort, proxyPort } = appContext;
   const rpcHttpApp = express();
-
+  console.log("asg");
   // Log all requests
   rpcHttpApp.use(
     audit({
