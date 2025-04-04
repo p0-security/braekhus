@@ -9,8 +9,8 @@ The target server must be able to send requests out from the private network, e.
 ### Running locally
 
 1. Run a target service that HTTP requests will be forwarded to. An easy way is with python: `python3 -m http.server 8000` - this will serve the contents of the folder where the command runs.
-2. Run the server in `ts` folder: `yarn start:dev:server --rpcPort 8080 --proxyPort 8081`
-3. Run the client in `ts` folder: `yarn start:dev:client --targetUrl http://localhost:8000 --clientId myClientId --tunnelHost localhost --tunnelPort 8080 --insecure true`
+2. Run the server: `yarn start:dev:server --rpcPort 8080 --proxyPort 8081`
+3. Run the client: `yarn start:dev:client --targetUrl http://localhost:8000 --clientId myClientId --tunnelHost localhost --tunnelPort 8080 --insecure true --jwkPath .`
 
 Then send an HTTP request to the server's proxy port:
 

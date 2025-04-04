@@ -18,13 +18,20 @@ export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
       req: serializeRequest,
       res: serializeResponse,
     },
-    // Redact the authorization header that may contain a secret token
-    redact: [
-      "response.config.headers.authorization", // Axios intercepted response object
-      "response.request.headers.authorization", // Axios intercepted response object contains the request as well
-      "request.headers.authorization", // Axios intercepted request object + forwarded request object (JSON RPC request)
-      "headers.authorization",
-    ],
+    hooks: {
+      // Redact the authorization header that may contain a secret bearer token with <REDACTED> label
+      streamWrite: (output) => {
+        // Match if:
+        // - the word authorization with or without trailing quotes, but require colon
+        // - followed by scheme (e.g. Bearer, Basic, etc.) with or without trailing quotes, and surrounded by whitespace
+        // - followed by any number of non-whitespace characters, and also not a quote (to preserve parsable json)
+        // Some schemes tolerate whitespaces in the token. Further improvement is to spell out scheme-specific patterns.
+        return output.replace(
+          /(authorization["']?:\s*["']?\w+\s+)[^\s"']+/gi,
+          "$1<REDACTED>"
+        );
+      },
+    },
     formatters: {
       level: (label) => {
         return { level: label };
