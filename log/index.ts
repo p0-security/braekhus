@@ -5,6 +5,27 @@ import {
   res as serializeResponse,
 } from "pino-std-serializers";
 
+const originalStdoutWrite = process.stdout.write;
+const originalStderrWrite = process.stderr.write;
+
+/** Sanitization masks the token in common authorization header schemes "bearer" and "basic".
+ *
+ * Sanitization is implemented by overriding the default write method of stdout and stderr
+ * instead of customizing pino because some third-party libraries use console.log directly.
+ */
+const sanitizeOutput = (data: string) => {
+  // Match if:
+  // - the word "bearer" or "basic" is followed by whitespace,
+  // - followed by any number of non-whitespace characters, and also not a quote (to preserve parsable json)
+  return data.replace(/(bearer|basic)(\s+)[^\s"']+/gi, "$1$2<REDACTED>");
+};
+
+process.stdout.write = (data) =>
+  originalStdoutWrite.call(process.stdout, sanitizeOutput(data.toString()));
+
+process.stderr.write = (data) =>
+  originalStderrWrite.call(process.stdout, sanitizeOutput(data.toString()));
+
 /**
  *  Logger with error serializer and levels displayed as text
  */
@@ -17,20 +38,6 @@ export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
       error: serializeError,
       req: serializeRequest,
       res: serializeResponse,
-    },
-    hooks: {
-      // Redact the authorization header that may contain a secret bearer token with <REDACTED> label
-      streamWrite: (output) => {
-        // Match if:
-        // - the word authorization with or without trailing quotes, but require colon
-        // - followed by scheme (e.g. Bearer, Basic, etc.) with or without trailing quotes, and surrounded by whitespace
-        // - followed by any number of non-whitespace characters, and also not a quote (to preserve parsable json)
-        // Some schemes tolerate whitespaces in the token. Further improvement is to spell out scheme-specific patterns.
-        return output.replace(
-          /(authorization["']?:\s*["']?\w+\s+)[^\s"']+/gi,
-          "$1<REDACTED>"
-        );
-      },
     },
     formatters: {
       level: (label) => {
