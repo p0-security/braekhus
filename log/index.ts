@@ -5,6 +5,27 @@ import {
   res as serializeResponse,
 } from "pino-std-serializers";
 
+const originalStdoutWrite = process.stdout.write;
+const originalStderrWrite = process.stderr.write;
+
+/** Sanitization masks the token in common authorization header schemes "bearer" and "basic".
+ *
+ * Sanitization is implemented by overriding the default write method of stdout and stderr
+ * instead of customizing pino because some third-party libraries use console.log directly.
+ */
+const sanitizeOutput = (data: string) => {
+  // Match if:
+  // - the word "bearer" or "basic" is followed by whitespace,
+  // - followed by any number of non-whitespace characters, and also not a quote (to preserve parsable json)
+  return data.replace(/(bearer|basic)(\s+)[^\s"']+/gi, "$1$2<REDACTED>");
+};
+
+process.stdout.write = (data) =>
+  originalStdoutWrite.call(process.stdout, sanitizeOutput(data.toString()));
+
+process.stderr.write = (data) =>
+  originalStderrWrite.call(process.stdout, sanitizeOutput(data.toString()));
+
 /**
  *  Logger with error serializer and levels displayed as text
  */
@@ -18,13 +39,6 @@ export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
       req: serializeRequest,
       res: serializeResponse,
     },
-    // Redact the authorization header that may contain a secret token
-    redact: [
-      "response.config.headers.authorization", // Axios intercepted response object
-      "response.request.headers.authorization", // Axios intercepted response object contains the request as well
-      "request.headers.authorization", // Axios intercepted request object + forwarded request object (JSON RPC request)
-      "headers.authorization",
-    ],
     formatters: {
       level: (label) => {
         return { level: label };
