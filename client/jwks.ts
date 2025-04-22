@@ -1,8 +1,8 @@
 import * as jose from "jose";
 import * as fs from "node:fs/promises";
-import pinoLogger from "pino";
+import { pino as pinoLogger } from "pino";
 
-import { privateKeyFile, publicKeyFile } from "../util/jwk-file";
+import { privateKeyFile, publicKeyFile } from "../util/jwk-file.js";
 
 const ALG = "ES384"; // Elliptic curve with 384-bit SHA
 

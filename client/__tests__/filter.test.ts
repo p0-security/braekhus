@@ -1,4 +1,4 @@
-import { jqTransform } from "../filter";
+import { jqTransform } from "../filter.js";
 
 const exampleResponse = {
   status: 200,

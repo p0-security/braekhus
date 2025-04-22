@@ -1,15 +1,14 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "esModuleInterop": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "Node18",
+    "moduleResolution": "node16",
     "noImplicitAny": true,
     "outDir": "dist",
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2017"
+    "target": "ES2023",
   },
   "exclude": ["**/__mocks__/*", "node_modules/", "dist/"],
   "ts-node": {

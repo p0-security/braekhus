@@ -1,11 +1,13 @@
+import * as fs from "fs";
+
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 
-const fs = require("fs");
-const path = require("node:path");
-
-const srcDir = fs.readdirSync(__dirname, {
-  withFileTypes: true,
-});
+const srcDir = fs.readdirSync(
+  "/Users/gergo/githome/main-repo/backend/braekhus",
+  {
+    withFileTypes: true,
+  }
+);
 const srcPaths = [];
 for (const entry of srcDir) {
   if (entry.isDirectory()) {
@@ -15,7 +17,7 @@ for (const entry of srcDir) {
 
 const pathPattern = `^((${srcPaths.join("|")})/.*)`;
 
-module.exports = {
+export default {
   preset: "ts-jest",
   moduleNameMapper: {
     [pathPattern]: "<rootDir>/$1",
