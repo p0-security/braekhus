@@ -1,6 +1,7 @@
 import { Backoff } from "client/backoff.js";
 import { Server } from "http";
 import request from "supertest";
+import { describe, expect,  it, beforeAll, afterAll } from "vitest";
 
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client/index.js";
