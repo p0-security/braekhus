@@ -1,4 +1,4 @@
-import pinoLogger, { Logger, LoggerOptions } from "pino";
+import { Logger, LoggerOptions, pino as pinoLogger } from "pino";
 import {
   err as serializeError,
   req as serializeRequest,
