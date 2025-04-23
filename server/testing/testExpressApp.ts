@@ -1,5 +1,5 @@
 import express, { Router } from "express";
-import { createLogger } from "log/index.js";
+import { createLogger } from "log/index";
 import { pinoHttp as audit } from "pino-http";
 
 const logger = createLogger({ name: "testHttpServer" });

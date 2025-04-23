@@ -1,14 +1,15 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "module": "Node18",
-    "moduleResolution": "node16",
+    "module": "ESNext",
+    "moduleResolution": "node",
     "noImplicitAny": true,
     "outDir": "dist",
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
     "target": "ES2023",
+    "esModuleInterop": true,
   },
   "exclude": ["**/__mocks__/*", "node_modules/", "dist/"],
   "ts-node": {

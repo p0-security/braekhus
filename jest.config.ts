@@ -1,32 +1,39 @@
-import * as fs from "fs";
+import fs from 'fs';
+import path from 'node:path';
+import { Config } from '@jest/types';
 
-/** @type {import('ts-jest').JestConfigWithTsJest} */
+const rootDir = path.resolve('.');
 
-const srcDir = fs.readdirSync(
-  "/Users/gergo/githome/main-repo/backend/braekhus",
-  {
-    withFileTypes: true,
-  }
-);
-const srcPaths = [];
+const srcDir = fs.readdirSync(rootDir, { withFileTypes: true });
+const srcPaths: string[] = [];
+
 for (const entry of srcDir) {
   if (entry.isDirectory()) {
     srcPaths.push(entry.name);
   }
 }
 
-const pathPattern = `^((${srcPaths.join("|")})/.*)`;
+const pathPattern = `^((${srcPaths.join('|')})/.*)`;
 
-export default {
-  preset: "ts-jest",
+const config: Config.InitialOptions = {
+  rootDir,
+  preset: 'ts-jest/presets/default-esm',
+  testEnvironment: 'node',
+  extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    [pathPattern]: "<rootDir>/$1",
+    "^client/(.*)": "<rootDir>/client/$1",
+    "^((.github|.husky|cli|common|log|node_modules|server|types|util)/.*)": "<rootDir>/$1",
   },
-  rootDir: ".",
-  testEnvironment: "node",
-  testPathIgnorePatterns: ["^dist/", "^node_modules/", ".*.input.snap.ts"],
-  moduleDirectories: ["node_modules"],
+  testPathIgnorePatterns: ['^dist/', '^node_modules/', '.*.input.snap.ts'],
+  moduleDirectories: ['node_modules'],
+  globals: {
+    'ts-jest': {
+      useESM: true,
+    },
+  },
   transform: {
-    "^.+\\.(t|j)sx?$": "@swc/jest",
+    '^.+\\.(t|j)sx?$': ['ts-jest', { useESM: true }],
   },
 };
+
+export default config;

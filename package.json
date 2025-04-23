@@ -60,7 +60,7 @@
   "scripts": {
     "build": "yarn clean && tsc --project ./",
     "clean": "rm -rf ./dist",
-    "test": "NODE_ENV=test jest --color --testPathIgnorePatterns '.*\\.((integration|e2e)\\.test|snap)\\.tsx?'",
+    "test": "NODE_OPTIONS='--loader ts-node/esm' NODE_ENV=test jest --color --testPathIgnorePatterns '.*\\.((integration|e2e)\\.test|snap)\\.tsx?'",
     "test:pretty": "NODE_ENV=test jest --color --testPathIgnorePatterns '.*\\.((integration|e2e)\\.test|snap)\\.tsx?' | pino-pretty",
     "start:dev:server": "NODE_ENV=development nodemon cli server",
     "start:prod:server": "NODE_PATH=dist node dist/cli server",
