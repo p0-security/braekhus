@@ -9,7 +9,7 @@
     "sourceMap": true,
     "strict": true,
     "target": "ES2024",
-    "esModuleInterop": true,
+    "esModuleInterop": true
   },
-  "exclude": ["**/__mocks__/*", "node_modules/", "dist/"],
+  "exclude": ["**/__mocks__/*", "node_modules/", "dist/"]
 }
