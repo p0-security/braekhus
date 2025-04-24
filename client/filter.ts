@@ -1,6 +1,6 @@
 import { isArray } from "lodash";
 
-import { createLogger } from "../log/index";
+import { createLogger } from "../log/index.js";
 
 const logger = createLogger({ name: "filter" });
 

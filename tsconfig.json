@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noImplicitAny": true,
     "outDir": "dist",
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2023",
+    "target": "ES2024",
     "esModuleInterop": true,
   },
   "exclude": ["**/__mocks__/*", "node_modules/", "dist/"],

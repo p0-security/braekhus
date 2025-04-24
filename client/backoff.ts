@@ -1,5 +1,5 @@
-import { createLogger } from "../log/index";
-import { deferral } from "../util/deferral";
+import { createLogger } from "../log/index.js";
+import { deferral } from "../util/deferral.js";
 
 const logger = createLogger({ name: "backoff" });
 

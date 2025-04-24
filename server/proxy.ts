@@ -3,15 +3,15 @@ import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash";
 import { pinoHttp as audit } from "pino-http";
 
-import { RetryOptions } from "../client/backoff";
-import { createLogger } from "../log/index";
-import { RemoteClientRpcServer } from "../server/index";
+import { RetryOptions } from "../client/backoff.js";
+import { createLogger } from "../log/index.js";
+import { RemoteClientRpcServer } from "../server/index.js";
 import {
   CallOptions,
   ForwardedRequest,
   ForwardedRequestOptions,
   IncomingRequest,
-} from "../types/index";
+} from "../types/index.js";
 
 const logger = createLogger({ name: "proxy" });
 

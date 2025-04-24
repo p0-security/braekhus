@@ -8,17 +8,17 @@ import { omit } from "lodash";
 import { Logger } from "pino";
 import WebSocket from "ws";
 
-import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants";
-import { createLogger } from "../log/index";
+import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants.js";
+import { createLogger } from "../log/index.js";
 import {
   ForwardedRequest,
   ForwardedResponse,
   JQ_HEADER,
-} from "../types/index";
-import { deferral } from "../util/deferral";
-import { Backoff } from "./backoff";
-import { jqTransform } from "./filter";
-import { jwt } from "./jwks";
+} from "../types/index.js";
+import { deferral } from "../util/deferral.js";
+import { Backoff } from "./backoff.js";
+import { jqTransform } from "./filter.js";
+import { jwt } from "./jwks.js";
 
 /**
  * Bi-directional JSON RPC client
