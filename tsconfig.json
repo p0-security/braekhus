@@ -12,7 +12,4 @@
     "esModuleInterop": true,
   },
   "exclude": ["**/__mocks__/*", "node_modules/", "dist/"],
-  "ts-node": {
-    "swc": true
-  }
 }

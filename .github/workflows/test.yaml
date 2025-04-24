@@ -30,6 +30,6 @@ jobs:
       - name: Yarn install
         run: yarn install --frozen-lockfile
       - name: Yarn unit test
-        run: yarn test -w=1
+        run: yarn test
       - name: Yarn compile
         run: yarn build
