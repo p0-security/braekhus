@@ -8,7 +8,7 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2024",
+    "target": "esnext",
     "esModuleInterop": true
   },
   "exclude": ["**/__mocks__/*", "node_modules/", "dist/"]

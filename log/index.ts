@@ -1,9 +1,11 @@
 import { Logger, LoggerOptions, pino as pinoLogger } from "pino";
-import {
-  err as serializeError,
-  req as serializeRequest,
-  res as serializeResponse,
-} from "pino-std-serializers";
+import serializers from "pino-std-serializers";
+
+const {
+  err: serializeError,
+  req: serializeRequest,
+  res: serializeResponse,
+} = serializers;
 
 const originalStdoutWrite = process.stdout.write;
 const originalStderrWrite = process.stderr.write;

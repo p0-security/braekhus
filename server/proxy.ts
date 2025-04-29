@@ -1,6 +1,6 @@
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
-import { omit } from "lodash";
+import { omit } from "lodash-es";
 import { pinoHttp as audit } from "pino-http";
 
 import { RetryOptions } from "../client/backoff.js";
