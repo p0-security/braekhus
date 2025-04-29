@@ -23,7 +23,7 @@ export class Backoff {
     this.#count++;
     return Math.min(
       this.#startMillis * Math.pow(2, this.#count - 1),
-      this.#maxMillis
+      this.#maxMillis,
     );
   }
 
@@ -46,7 +46,7 @@ export const sleep = (millis: number): Promise<void> => {
 
 export const retryWithBackoff = async <T>(
   options: RetryOptions,
-  func: () => Promise<T>
+  func: () => Promise<T>,
 ) => {
   const result = deferral<T>();
 
@@ -67,7 +67,7 @@ export const retryWithBackoff = async <T>(
         const timeout = backoff.next();
         logger.debug(
           { nextTimeout: timeout, count, error: e },
-          "Retrying with backoff timeout"
+          "Retrying with backoff timeout",
         );
         await sleep(timeout);
       }

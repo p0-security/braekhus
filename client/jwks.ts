@@ -28,7 +28,7 @@ const generateKey = async (path: string) => {
     JSON.stringify(await jose.exportJWK(privateKey), undefined, 2),
     {
       encoding: "utf-8",
-    }
+    },
   );
   await fs.chmod(privateKeyFile(path), "400");
   await fs.writeFile(
@@ -36,7 +36,7 @@ const generateKey = async (path: string) => {
     JSON.stringify(await jose.exportJWK(publicKey), undefined, 2),
     {
       encoding: "utf-8",
-    }
+    },
   );
   return privateKey;
 };

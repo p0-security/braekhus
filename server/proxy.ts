@@ -23,7 +23,7 @@ export const httpProxyApp = (
     callOptions?: CallOptions;
     forwardedRequestOptions?: ForwardedRequestOptions;
     retryOptions?: RetryOptions;
-  }
+  },
 ) => {
   const app = express();
   app.use(audit({ logger, useLevel: "debug" }));
@@ -58,7 +58,7 @@ export const httpProxyApp = (
         request,
         clientId,
         options?.callOptions,
-        options?.retryOptions
+        options?.retryOptions,
       );
       const isChunked =
         response.headers["transfer-encoding"]?.trim() === "chunked";

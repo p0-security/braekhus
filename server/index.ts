@@ -71,7 +71,7 @@ export const runApp = (appParams: {
         // Note that _req is undefined :[
         return res.req.url === "/live" ? "trace" : "info";
       },
-    })
+    }),
   );
   rpcHttpApp.get("/", (_req, res) => {
     res.send("root");
@@ -109,9 +109,9 @@ export class JsonRpcServer {
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
     onChannelConnection: (
       channelId: ChannelId,
-      channel: JSONRPCServerAndClient
+      channel: JSONRPCServerAndClient,
     ) => void,
-    onChannelClose: (channelId: ChannelId) => void
+    onChannelClose: (channelId: ChannelId) => void,
   ) {
     this.#logger = createLogger({ name: "JsonRpcServer" });
     this.#serverSocket = new WebSocketServer(options);
@@ -127,7 +127,7 @@ export class JsonRpcServer {
           } catch (error) {
             return Promise.reject(error);
           }
-        })
+        }),
       );
 
       onChannelConnection(channelId, channel);
@@ -160,7 +160,7 @@ export class JsonRpcServer {
   handleUpgrade(
     request: InstanceType<typeof IncomingMessage>,
     socket: Duplex,
-    head: Buffer
+    head: Buffer,
   ) {
     this.#serverSocket.handleUpgrade(request, socket, head, (socket) => {
       this.#serverSocket.emit("connection", socket, request);
@@ -171,12 +171,12 @@ export class JsonRpcServer {
     channelId: ChannelId,
     method: string,
     request: any,
-    options?: CallOptions
+    options?: CallOptions,
   ): Promise<ForwardedResponse> {
     const requestId = randomUUID();
     this.#logger.debug(
       { requestId, channelId, method, request },
-      "RPC request"
+      "RPC request",
     );
     const channel = this.#channels.get(channelId);
     if (!channel) {
@@ -186,18 +186,18 @@ export class JsonRpcServer {
       const response = await channel
         // This throws an {"type": "JSONRPCErrorException", "message": "Request timeout"} error if the timeout is reached
         .timeout(
-          options?.timeoutMillis ?? DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS
+          options?.timeoutMillis ?? DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS,
         )
         .request(method, request);
       this.#logger.debug(
         { requestId, channelId, method, response },
-        "RPC response"
+        "RPC response",
       );
       return response;
     } catch (error) {
       this.#logger.error(
         { requestId, channelId, method, error, spammy: true },
-        "RPC response"
+        "RPC response",
       );
       throw error;
     }
@@ -210,7 +210,7 @@ export class JsonRpcServer {
 
   async broadcast(method: string, request: any) {
     const promises = [...this.#channels.keys()].map((channelId) =>
-      this.call(channelId, method, request)
+      this.call(channelId, method, request),
     );
     return Promise.allSettled(promises);
   }
@@ -232,12 +232,12 @@ export class RemoteClientRpcServer extends JsonRpcServer {
 
   constructor(
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
-    initContext?: InitContext
+    initContext?: InitContext,
   ) {
     super(
       options,
       (channelId, channel) => this.onChannelConnection(channelId, channel),
-      (channelId) => this.onChannelClose(channelId)
+      (channelId) => this.onChannelClose(channelId),
     );
     this.#logger = createLogger({ name: "ClusterRpcServer" });
     if (initContext) {
@@ -280,7 +280,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     method: string,
     request: any,
     clientId: ClientId,
-    callOptions?: CallOptions
+    callOptions?: CallOptions,
   ) {
     const channelId = this.#channelIds.get(clientId);
     if (!channelId) {
@@ -295,11 +295,11 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     request: any,
     clientId: ClientId,
     callOptions?: CallOptions,
-    retryOptions?: RetryOptions
+    retryOptions?: RetryOptions,
   ) {
     if (retryOptions) {
       return await retryWithBackoff(retryOptions, () =>
-        this.#callClient(method, request, clientId, callOptions)
+        this.#callClient(method, request, clientId, callOptions),
       );
     }
     return this.#callClient(method, request, clientId, callOptions);
@@ -314,13 +314,13 @@ export class JsonRpcApp {
   constructor(
     httpServer: Server<typeof IncomingMessage, typeof ServerResponse>,
     publicKeyGetter: PublicKeyGetter,
-    initContext?: InitContext
+    initContext?: InitContext,
   ) {
     this.#logger = createLogger({ name: "JsonRpcApp" });
     this.#httpServer = httpServer;
     this.#rpcServer = new RemoteClientRpcServer(
       { noServer: true },
-      initContext
+      initContext,
     );
 
     this.#httpServer.on("upgrade", (request, socket, head) => {
