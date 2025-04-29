@@ -1,10 +1,10 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-import { JsonRpcClient } from "../client";
-import { Backoff } from "../client/backoff";
-import { createLogger } from "../log";
-import { runApp } from "../server";
+import { Backoff } from "../client/backoff.js";
+import { JsonRpcClient } from "../client/index.js";
+import { createLogger } from "../log/index.js";
+import { runApp } from "../server/index.js";
 
 const logger = createLogger({ name: "cli" });
 
@@ -38,7 +38,7 @@ void yargs(hideBin(process.argv))
         forwardedRequestOptions: { timeoutMillis: args.proxyTimeout },
         retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
       });
-    }
+    },
   )
   .command(
     "client",
@@ -88,11 +88,11 @@ void yargs(hideBin(process.argv))
       const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
       const client = new JsonRpcClient(
         { targetUrl, clientId, jwkPath },
-        { host, port, insecure, backoff }
+        { host, port, insecure, backoff },
       );
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
-    }
+    },
   )
   .demandCommand(1)
   .strict()

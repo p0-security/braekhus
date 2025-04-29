@@ -1,4 +1,6 @@
-import { jqTransform } from "../filter";
+import { describe, expect, it } from "vitest";
+
+import { jqTransform } from "../filter.js";
 
 const exampleResponse = {
   status: 200,
@@ -48,7 +50,7 @@ describe("json path filter", () => {
   it("returns only selected fields", async () => {
     const result = await jqTransform(
       exampleResponse,
-      "{ status: .status, data: { kind: .data.kind, items: [.data.items[] | { metadata: { name: .metadata.name } }] } }"
+      "{ status: .status, data: { kind: .data.kind, items: [.data.items[] | { metadata: { name: .metadata.name } }] } }",
     );
 
     expect(result).toMatchSnapshot();

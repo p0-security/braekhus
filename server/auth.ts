@@ -1,7 +1,7 @@
 import * as jose from "jose";
-import pinoLogger from "pino";
+import { pino as pinoLogger } from "pino";
 
-import { PublicKeyGetter } from "../types";
+import { PublicKeyGetter } from "../types/index.js";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
@@ -23,7 +23,7 @@ export class AuthorizationError extends Error {
 // Errors would be logged on every attempt from the braekhus proxy to connect, only log with debug level
 export const validateAuth = async (
   authorization: string | undefined,
-  publicKeyGetter: PublicKeyGetter
+  publicKeyGetter: PublicKeyGetter,
 ) => {
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);

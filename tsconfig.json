@@ -1,18 +1,15 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "esModuleInterop": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noImplicitAny": true,
     "outDir": "dist",
     "resolveJsonModule": true,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2017"
+    "target": "esnext",
+    "esModuleInterop": true
   },
-  "exclude": ["**/__mocks__/*", "node_modules/", "dist/"],
-  "ts-node": {
-    "swc": true
-  }
+  "exclude": ["**/__mocks__/*", "node_modules/", "dist/"]
 }
