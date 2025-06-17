@@ -3,3 +3,4 @@
 **/__tests__/
 **/.husky/
 **/nodemon.json
+**/vitest.config.ts
