@@ -11,20 +11,20 @@ import { Logger } from "pino";
 import audit from "pino-http";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
-import { RetryOptions, retryWithBackoff } from "../client/backoff";
-import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants";
-import { createLogger } from "../log";
+import { RetryOptions, retryWithBackoff } from "../client/backoff.js";
+import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants.js";
+import { createLogger } from "../log/index.js";
 import {
   CallOptions,
   ForwardedRequestOptions,
   ForwardedResponse,
   PublicKeyGetter,
-} from "../types";
-import { validateAuth } from "./auth";
-import { ChannelNotFoundError } from "./error";
-import { ensureKey } from "./key-cache";
-import { httpProxyApp } from "./proxy";
-import { httpError } from "./util";
+} from "../types/index.js";
+import { validateAuth } from "./auth.js";
+import { ChannelNotFoundError } from "./error.js";
+import { ensureKey } from "./key-cache.js";
+import { httpProxyApp } from "./proxy.js";
+import { httpError } from "./util.js";
 
 const logger = createLogger({ name: "server" });
 
