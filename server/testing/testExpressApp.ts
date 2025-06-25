@@ -1,5 +1,5 @@
 import express, { Router } from "express";
-import audit from "pino-http";
+import { pinoHttp } from "pino-http";
 
 import { createLogger } from "../../log/index.js";
 
@@ -17,7 +17,7 @@ export const testHttpServer = (port: number) => {
   });
 
   const app = express();
-  app.use(audit({ logger }));
+  app.use(pinoHttp({ logger }));
   app.use("/", router);
 
   const httpServer = app.listen(port, () => {

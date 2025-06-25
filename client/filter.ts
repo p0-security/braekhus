@@ -1,14 +1,9 @@
-import { isArray } from "lodash";
+import { isArray } from "lodash-es";
+import { run as jq } from "node-jq";
 
 import { createLogger } from "../log/index.js";
 
 const logger = createLogger({ name: "filter" });
-
-// import { jq } from "node-jq";
-// TODO fix node config because jq-node cannot be imported with the `import` syntax above
-// Error:
-// Module '"node-jq"' has no exported member 'jq'.
-const jq = require("node-jq");
 
 export const jqTransform = async (
   data: any,
@@ -19,7 +14,7 @@ export const jqTransform = async (
     return data;
   }
   try {
-    return await jq.run(query, data, { input: "json", output: "json" });
+    return await jq(query, data, { input: "json", output: "json" });
   } catch (error: any) {
     logger.error(
       { error, jpSelectQuery: query },
