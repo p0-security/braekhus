@@ -4,7 +4,7 @@ import {
   JSONRPCServer,
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
-import { omit } from "lodash";
+import { omit } from "lodash-es";
 import { Logger } from "pino";
 import WebSocket from "ws";
 

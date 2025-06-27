@@ -1,9 +1,11 @@
-import pinoLogger, { Logger, LoggerOptions } from "pino";
-import {
-  err as serializeError,
-  req as serializeRequest,
-  res as serializeResponse,
-} from "pino-std-serializers";
+import { Logger, LoggerOptions, pino } from "pino";
+import * as pinoSerializers from "pino-std-serializers";
+
+const {
+  err: serializeError,
+  req: serializeRequest,
+  res: serializeResponse,
+} = pinoSerializers;
 
 const originalStdoutWrite = process.stdout.write;
 const originalStderrWrite = process.stderr.write;
@@ -30,7 +32,7 @@ process.stderr.write = (data) =>
  *  Logger with error serializer and levels displayed as text
  */
 export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
-  const logger = pinoLogger({
+  const logger = pino({
     ...options,
     name: `braekhus.${options.name}`,
     level: process.env.LOG_LEVEL || "info",

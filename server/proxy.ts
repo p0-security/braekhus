@@ -1,7 +1,7 @@
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
-import { omit } from "lodash";
-import audit from "pino-http";
+import { omit } from "lodash-es";
+import { pinoHttp } from "pino-http";
 
 import { RetryOptions } from "../client/backoff.js";
 import { createLogger } from "../log/index.js";
@@ -26,7 +26,7 @@ export const httpProxyApp = (
   }
 ) => {
   const app = express();
-  app.use(audit({ logger, useLevel: "debug" }));
+  app.use(pinoHttp({ logger, useLevel: "debug" }));
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
   app.use(express.json());
