@@ -2,5 +2,4 @@
 **/dist/
 **/__tests__/
 **/.husky/
-**/nodemon.json
 **/vitest.config.ts
