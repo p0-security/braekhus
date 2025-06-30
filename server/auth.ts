@@ -23,7 +23,7 @@ export class AuthorizationError extends Error {
 // Errors would be logged on every attempt from the braekhus proxy to connect, only log with debug level
 export const validateAuth = async (
   authorization: string | undefined,
-  publicKeyGetter: PublicKeyGetter
+  publicKeyGetter: PublicKeyGetter,
 ) => {
   if (!authorization) throw new AuthorizationError();
   const match = authorization.match(AUTH_PATTERN);

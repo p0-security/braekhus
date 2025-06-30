@@ -37,7 +37,7 @@ const runClient = async (waitUntilConnected?: boolean): Promise<Client> => {
       port: SERVER_RPC_PORT,
       insecure: true,
       backoff: new Backoff(500, 500),
-    }
+    },
   );
   await jsonRpcClient.run();
   if (waitUntilConnected) {
@@ -47,7 +47,7 @@ const runClient = async (waitUntilConnected?: boolean): Promise<Client> => {
 };
 
 export const sleep = (
-  millis: number
+  millis: number,
 ): Promise<void> & { cancel: () => void } => {
   let timeout: NodeJS.Timeout;
   const promise = new Promise<void>((resolve) => {
@@ -75,23 +75,23 @@ describe("Proxy server starts up first", () => {
     it("responds 502 when client ID is valid", async () => {
       // Even though the client ID is valid, there is no client connected with with that channel ID
       await expect(
-        request(server.expressApp).get("/client/testClientId")
+        request(server.expressApp).get("/client/testClientId"),
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
           text: '{"error":{"type":"channel_not_found"},"message":"Error: Channel not found: testChannelId"}',
-        })
+        }),
       );
     });
 
     it("responds 502 when client ID is invalid", async () => {
       await expect(
-        request(server.expressApp).get("/client/noSuchClientId")
+        request(server.expressApp).get("/client/noSuchClientId"),
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
           text: '{"error":{},"message":"Error: Client not found: noSuchClientId"}',
-        })
+        }),
       );
     });
   });
@@ -113,34 +113,34 @@ describe("Proxy server starts up first", () => {
       "returns 200 if root path exists in target, with suffix '%s'",
       async (suffix) => {
         await expect(
-          request(server.expressApp).get(`/client/testClientId${suffix}`)
+          request(server.expressApp).get(`/client/testClientId${suffix}`),
         ).resolves.toMatchObject(
           expect.objectContaining({
             status: 200,
             text: "root",
-          })
+          }),
         );
-      }
+      },
     );
 
     it("returns 200 if path exists in target", async () => {
       await expect(
-        request(server.expressApp).get("/client/testClientId/happy/path")
+        request(server.expressApp).get("/client/testClientId/happy/path"),
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 200,
           text: "hello",
-        })
+        }),
       );
     });
 
     it("returns 404 if path does not exists in target", async () => {
       await expect(
-        request(server.expressApp).get("/client/testClientId/unhappy/path")
+        request(server.expressApp).get("/client/testClientId/unhappy/path"),
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 404,
-        })
+        }),
       );
     });
   });

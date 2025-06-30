@@ -45,7 +45,7 @@ export class JsonRpcClient {
       port: number;
       insecure?: boolean;
       backoff?: Backoff;
-    }
+    },
   ) {
     this.#logger = createLogger({ name: "JsonRpcClient" });
     const { targetUrl, clientId, jwkPath } = proxyConfig;
@@ -58,7 +58,7 @@ export class JsonRpcClient {
     this.#backoff = backoff;
     this.#jsonRpcClient.completeWith(this.create());
     this.#jsonRpcClient.promise.catch((error: any) =>
-      this.#logger.error({ error }, "Error creating JSON RPC client")
+      this.#logger.error({ error }, "Error creating JSON RPC client"),
     );
 
     axios.interceptors.request.use((request) => {
@@ -86,7 +86,7 @@ export class JsonRpcClient {
         } catch (error) {
           return Promise.reject(error);
         }
-      })
+      }),
     );
 
     clientSocket.on("error", (error) => {
@@ -112,7 +112,7 @@ export class JsonRpcClient {
       if (!this.#isShutdown && this.#backoff) {
         this.#retryTimeout = setTimeout(
           () => this.create(),
-          this.#backoff.next()
+          this.#backoff.next(),
         );
       }
     });
@@ -142,7 +142,7 @@ export class JsonRpcClient {
             headers: omit(request.headers, "authorization"),
           },
         },
-        "forwarded request"
+        "forwarded request",
       );
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
@@ -167,7 +167,7 @@ export class JsonRpcClient {
       const data = await jqTransform(response.data, jpSelectHeader);
       this.#logger.debug(
         { response: data },
-        "forwarded response data after filters"
+        "forwarded response data after filters",
       );
       return {
         headers: response.headers,

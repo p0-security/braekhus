@@ -7,7 +7,7 @@ const logger = createLogger({ name: "filter" });
 
 export const jqTransform = async (
   data: any,
-  jqHeader: string | string[] | undefined
+  jqHeader: string | string[] | undefined,
 ): Promise<any> => {
   const query = isArray(jqHeader) ? jqHeader[0] : jqHeader;
   if (!query) {
@@ -18,7 +18,7 @@ export const jqTransform = async (
   } catch (error: any) {
     logger.error(
       { error, jpSelectQuery: query },
-      "Error running jq query, ignoring filters"
+      "Error running jq query, ignoring filters",
     );
     return data;
   }

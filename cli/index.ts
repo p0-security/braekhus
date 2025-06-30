@@ -38,7 +38,7 @@ void yargs(hideBin(process.argv))
         forwardedRequestOptions: { timeoutMillis: args.proxyTimeout },
         retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
       });
-    }
+    },
   )
   .command(
     "client",
@@ -88,11 +88,11 @@ void yargs(hideBin(process.argv))
       const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
       const client = new JsonRpcClient(
         { targetUrl, clientId, jwkPath },
-        { host, port, insecure, backoff }
+        { host, port, insecure, backoff },
       );
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
-    }
+    },
   )
   .demandCommand(1)
   .strict()
