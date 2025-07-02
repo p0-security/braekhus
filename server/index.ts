@@ -8,7 +8,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
 import { Logger } from "pino";
-import audit from "pino-http";
+import { pinoHttp } from "pino-http";
 import { ServerOptions, WebSocket, WebSocketServer } from "ws";
 
 import { RetryOptions, retryWithBackoff } from "../client/backoff.js";
@@ -65,7 +65,7 @@ export const runApp = (appParams: {
 
   // Log all requests
   rpcHttpApp.use(
-    audit({
+    pinoHttp({
       logger,
       customLogLevel: (_req, res) => {
         // Note that _req is undefined :[
