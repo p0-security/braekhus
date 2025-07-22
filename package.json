@@ -1,5 +1,5 @@
 {
-  "name": "braekhus",
+  "name": "@p0security/braekhus",
   "version": "0.0.1",
   "description": "Hole-punching reverse HTTPS proxy",
   "private": true,

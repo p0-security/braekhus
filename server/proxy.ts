@@ -5,7 +5,7 @@ import { pinoHttp } from "pino-http";
 
 import { RetryOptions } from "../client/backoff.js";
 import { createLogger } from "../log/index.js";
-import { RemoteClientRpcServer } from "../server/index.js";
+import { RemoteClientRpcServer } from "./index.js";
 import {
   CallOptions,
   ForwardedRequest,
