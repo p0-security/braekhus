@@ -6,6 +6,7 @@ import { Backoff } from "../../client/backoff.js";
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client/index.js";
 import { App, InitContext, runApp } from "..//index.js";
+import { ensureKey } from "../key-cache.js";
 import { testHttpServer } from "../testing/testExpressApp.js";
 
 const SERVER_RPC_PORT = 18080;
@@ -20,6 +21,7 @@ type Client = {
 const runServer = (initContext?: InitContext) => {
   return runApp({
     appContext: { rpcPort: SERVER_RPC_PORT, proxyPort: SERVER_PROXY_PORT },
+    publicKeyGetter: ensureKey,
     initContext,
   });
 };
