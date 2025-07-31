@@ -22,7 +22,6 @@ import {
 } from "../types/index.js";
 import { validateAuth } from "./auth.js";
 import { ChannelNotFoundError } from "./error.js";
-import { ensureKey } from "./key-cache.js";
 import { httpProxyApp } from "./proxy.js";
 import { httpError } from "./util.js";
 
@@ -48,6 +47,7 @@ export type App = {
 
 export const runApp = (appParams: {
   appContext: AppContext;
+  publicKeyGetter: PublicKeyGetter;
   initContext?: InitContext;
   callOptions?: CallOptions;
   forwardedRequestOptions?: ForwardedRequestOptions;
@@ -55,6 +55,7 @@ export const runApp = (appParams: {
 }): App => {
   const {
     appContext,
+    publicKeyGetter,
     initContext,
     callOptions,
     forwardedRequestOptions,
@@ -84,7 +85,11 @@ export const runApp = (appParams: {
   const rpcHttpServer = rpcHttpApp.listen(rpcPort, () => {
     logger.info(`HTTP JSON RPC service listening on port ${rpcPort}`);
   });
-  const jsonRpcApp = new JsonRpcApp(rpcHttpServer, ensureKey, initContext);
+  const jsonRpcApp = new JsonRpcApp(
+    rpcHttpServer,
+    publicKeyGetter,
+    initContext
+  );
   const expressApp = httpProxyApp(jsonRpcApp.getRpcServer(), {
     callOptions,
     retryOptions,
