@@ -5,6 +5,7 @@ import { Backoff } from "../client/backoff.js";
 import { JsonRpcClient } from "../client/index.js";
 import { createLogger } from "../log/index.js";
 import { runApp } from "../server/index.js";
+import { ensureKey } from "../server/key-cache.js";
 
 const logger = createLogger({ name: "cli" });
 
@@ -35,6 +36,7 @@ void yargs(hideBin(process.argv))
     (args) => {
       runApp({
         appContext: args,
+        publicKeyGetter: ensureKey,
         forwardedRequestOptions: { timeoutMillis: args.proxyTimeout },
         retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
       });
