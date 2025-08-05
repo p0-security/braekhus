@@ -5,13 +5,13 @@ import { pinoHttp } from "pino-http";
 
 import { RetryOptions } from "../client/backoff.js";
 import { createLogger } from "../log/index.js";
-import { RemoteClientRpcServer } from "./index.js";
 import {
   CallOptions,
   ForwardedRequest,
   ForwardedRequestOptions,
   IncomingRequest,
 } from "../types/index.js";
+import { RemoteClientRpcServer } from "./index.js";
 
 const logger = createLogger({ name: "proxy" });
 
