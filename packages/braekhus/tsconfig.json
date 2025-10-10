@@ -4,6 +4,7 @@
     "esModuleInterop": true,
     "module": "node18",
     "moduleResolution": "nodenext",
+    "composite": true,
     "noImplicitAny": true,
     "outDir": "dist",
     "resolveJsonModule": true,
