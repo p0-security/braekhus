@@ -2,12 +2,12 @@ import * as jose from "jose";
 import { pino } from "pino";
 
 import { PublicKeyGetter } from "../types/index.js";
+import { createLogger } from "log/index.js";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
 
-const logger = pino({ name: "auth" });
-
+const logger = createLogger({ name: "auth" });
 export class AuthorizationError extends Error {
   constructor() {
     super("Unauthorized");
