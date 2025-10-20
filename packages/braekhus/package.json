@@ -4,6 +4,9 @@
   "description": "Hole-punching reverse HTTPS proxy",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./dist/*"
+  },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/express": "4.17.14",
@@ -51,9 +54,9 @@
     "test": "NODE_ENV=test FORCE_COLOR=1 vitest run",
     "test:pretty": "NODE_ENV=test vitest run | pino-pretty",
     "start:dev:server": "NODE_ENV=development tsx watch --clear-screen=false cli/index.ts server",
-    "start:prod:server": "NODE_PATH=dist node dist/cli/index.js server",
+    "start:prod:server": "node dist/cli/index.js server",
     "start:dev:client": "NODE_ENV=development tsx watch --clear-screen=false cli/index.ts client",
-    "start:prod:client": "NODE_PATH=dist node dist/cli/index.js client",
+    "start:prod:client": "node dist/cli/index.js client",
     "format": "prettier --write '**/*.{html,js,ts,json,less,md}'",
     "format:quick": "pretty-quick --branch origin/main"
   },
