@@ -20,6 +20,8 @@ import { Backoff } from "./backoff.js";
 import { jqTransform } from "./filter.js";
 import { jwt } from "./jwks.js";
 
+const PING_TIMEOUT_MS = 30000;
+
 /**
  * Bi-directional JSON RPC client
  */
@@ -35,6 +37,7 @@ export class JsonRpcClient {
 
   #backoff?: Backoff;
   #webSocket?: WebSocket;
+  #pingTimeout?: NodeJS.Timeout;
   #retryTimeout?: NodeJS.Timeout;
   #isShutdown: boolean = false;
 
@@ -72,6 +75,16 @@ export class JsonRpcClient {
     });
   }
 
+  #resetPingTimeout() {
+    clearTimeout(this.#pingTimeout);
+    // Use `WebSocket#terminate()`, which immediately destroys the connection,
+    // instead of `WebSocket#close()`, which waits for the close timer.
+    // Close handler will retry connection
+    this.#pingTimeout = setTimeout(() => {
+      this.#logger.warn("Ping timeout - terminating connection");
+      this.#webSocket?.terminate();
+    }, PING_TIMEOUT_MS);
+  }
   async create() {
     const token = await jwt(this.#jwkPath, this.#clientId);
     const clientSocket = new WebSocket(this.#webSocketUrl, {
@@ -96,6 +109,8 @@ export class JsonRpcClient {
 
     clientSocket.on("open", () => {
       this.#logger.info("connection opened");
+      // Start ping timeout
+      this.#resetPingTimeout();
       // After opening the connection, send the client ID to the server
       client
         .request("setClientId", { clientId: this.#clientId })
@@ -128,8 +143,8 @@ export class JsonRpcClient {
 
     clientSocket.on("ping", () => {
       // The client automatically responds to ping messages without an implementation here
-      // TODO detect broken connection based on https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
       this.#logger.debug("ping");
+      this.#resetPingTimeout();
     });
 
     this.#webSocket = clientSocket;
