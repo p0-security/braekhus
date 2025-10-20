@@ -4,6 +4,9 @@
   "description": "Hole-punching reverse HTTPS proxy",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./dist/*"
+  },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/express": "4.17.14",
