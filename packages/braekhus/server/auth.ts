@@ -6,7 +6,7 @@ import { createLogger } from "../log/index.js";
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
 
-const logger = createLogger({ name: "auth" });
+const logger = createLogger({ name: "auth", level: "debug" });
 export class AuthorizationError extends Error {
   constructor() {
     super("Unauthorized");

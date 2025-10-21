@@ -68,6 +68,7 @@ export const runApp = (appParams: {
   rpcHttpApp.use(
     pinoHttp({
       logger,
+      useLevel: "debug",
       customLogLevel: (_req, res) => {
         // Note that _req is undefined :[
         return res.req.url === "/live" ? "trace" : "info";
