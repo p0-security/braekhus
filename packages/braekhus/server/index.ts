@@ -145,7 +145,7 @@ export class JsonRpcServer {
         const message = data.toString("utf-8");
         channel.receiveAndSend(JSON.parse(message));
       });
-      ws.on("pong", () => this.#logger.trace("pong"));
+      ws.on("pong", () => this.#logger.debug("pong"));
       ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
         onChannelClose(channelId);

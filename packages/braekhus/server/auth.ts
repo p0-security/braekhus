@@ -24,7 +24,10 @@ export const validateAuth = async (
   authorization: string | undefined,
   publicKeyGetter: PublicKeyGetter
 ) => {
-  if (!authorization) throw new AuthorizationError();
+  if (!authorization) {
+    logger.debug("Authorization header not found")
+    throw new AuthorizationError();
+  }
   const match = authorization.match(AUTH_PATTERN);
   if (!match || !match[1]) {
     logger.debug("Bearer token not found");
