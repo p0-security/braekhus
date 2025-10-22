@@ -76,6 +76,11 @@ export class JsonRpcClient {
   }
 
   #scheduleReconnect() {
+    // Reset the connected deferral so waitUntilConnected() works for reconnection
+    if (this.#connected.isCompleted()) {
+      this.#connected = deferral<void>();
+    }
+
     if (!this.#isShutdown && this.#backoff) {
       this.#retryTimeout = setTimeout(
         () => this.create(),
@@ -94,6 +99,7 @@ export class JsonRpcClient {
       this.#webSocket?.terminate();
     }, PING_TIMEOUT_MS);
   }
+
   async create() {
     let token: string;
     let clientSocket: WebSocket;
