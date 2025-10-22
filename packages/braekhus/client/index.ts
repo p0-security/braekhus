@@ -75,6 +75,15 @@ export class JsonRpcClient {
     });
   }
 
+  #scheduleReconnect() {
+    if (!this.#isShutdown && this.#backoff) {
+      this.#retryTimeout = setTimeout(
+        () => this.create(),
+        this.#backoff.next()
+      );
+    }
+  }
+
   #resetPingTimeout() {
     clearTimeout(this.#pingTimeout);
     // Use `WebSocket#terminate()`, which immediately destroys the connection,
@@ -86,10 +95,20 @@ export class JsonRpcClient {
     }, PING_TIMEOUT_MS);
   }
   async create() {
-    const token = await jwt(this.#jwkPath, this.#clientId);
-    const clientSocket = new WebSocket(this.#webSocketUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    let token: string;
+    let clientSocket: WebSocket;
+
+    try {
+      token = await jwt(this.#jwkPath, this.#clientId);
+      clientSocket = new WebSocket(this.#webSocketUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      this.#logger.error({ error }, "Failed to create WebSocket connection");
+      this.#scheduleReconnect();
+      throw error;
+    }
+
     const client = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient((request) => {
@@ -124,12 +143,7 @@ export class JsonRpcClient {
     clientSocket.on("close", () => {
       this.#logger.info("connection closed");
       // Keep looking for the server after closing the connection
-      if (!this.#isShutdown && this.#backoff) {
-        this.#retryTimeout = setTimeout(
-          () => this.create(),
-          this.#backoff.next()
-        );
-      }
+      this.#scheduleReconnect();
     });
 
     clientSocket.on("message", (data, isBinary) => {
