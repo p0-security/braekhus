@@ -76,6 +76,11 @@ export class JsonRpcClient {
   }
 
   #scheduleReconnect() {
+    // Reset the connected deferral so waitUntilConnected() works for reconnection
+    if (this.#connected.isResolved()) {
+      this.#connected = deferral<void>();
+    }
+
     if (!this.#isShutdown && this.#backoff) {
       this.#retryTimeout = setTimeout(
         () => this.create(),
