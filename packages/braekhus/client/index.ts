@@ -24,7 +24,7 @@ import { jwt } from "./jwks.js";
  * Bi-directional JSON RPC client
  */
 export class JsonRpcClient {
-  #jsonRpcClient = deferral<JSONRPCServerAndClient>();
+  #jsonRpcClient?: JSONRPCServerAndClient;
   #connected = deferral<void>();
   #webSocketUrl: string;
   #targetUrl: string;
@@ -37,6 +37,7 @@ export class JsonRpcClient {
   #webSocket?: WebSocket;
   #retryTimeout?: NodeJS.Timeout;
   #isShutdown: boolean = false;
+  #reconnectAttempts: number = 0;
 
   constructor(
     proxyConfig: { targetUrl: string; clientId: string; jwkPath: string },
@@ -56,10 +57,9 @@ export class JsonRpcClient {
     const { host, port, insecure, backoff } = tunnelConfig;
     this.#webSocketUrl = `ws${!insecure ? "s" : ""}://${host}:${port}`;
     this.#backoff = backoff;
-    this.#jsonRpcClient.completeWith(this.create());
-    this.#jsonRpcClient.promise.catch((error: any) =>
-      this.#logger.error({ error }, "Error creating JSON RPC client")
-    );
+
+    // Initiate the first connection
+    this.#initiateConnection();
 
     axios.interceptors.request.use((request) => {
       this.#logger.debug({ request }, "Axios request");
@@ -72,11 +72,80 @@ export class JsonRpcClient {
     });
   }
 
+  /**
+   * Initiates a connection attempt with proper error handling
+   */
+  #initiateConnection() {
+    this.#reconnectAttempts++;
+    this.#logger.info(
+      { attempt: this.#reconnectAttempts },
+      "Initiating connection attempt"
+    );
+
+    this.create().catch((error) => {
+      this.#logger.error(
+        { error, attempt: this.#reconnectAttempts },
+        "Failed to create connection, will retry"
+      );
+      // Schedule reconnection attempt
+      this.#scheduleReconnect();
+    });
+  }
+
+  /**
+   * Schedules a reconnection attempt using backoff strategy
+   */
+  #scheduleReconnect() {
+    if (this.#isShutdown) {
+      this.#logger.info("Shutdown in progress, not scheduling reconnect");
+      return;
+    }
+
+    if (!this.#backoff) {
+      this.#logger.warn(
+        "No backoff configured, reconnection will not be attempted"
+      );
+      return;
+    }
+
+    const delay = this.#backoff.next();
+    this.#logger.info(
+      { delayMs: delay, attempt: this.#reconnectAttempts + 1 },
+      "Scheduling reconnection attempt"
+    );
+
+    this.#retryTimeout = setTimeout(() => {
+      this.#initiateConnection();
+    }, delay);
+  }
+
+  /**
+   * Resets connection state for reconnection
+   */
+  #resetConnectionState() {
+    // Reset the connected deferral so waitUntilConnected() works correctly
+    if (this.#connected.isResolved()) {
+      this.#logger.debug("Resetting connection state for reconnection");
+      this.#connected = deferral<void>();
+    }
+  }
+
   async create() {
-    const token = await jwt(this.#jwkPath, this.#clientId);
+    let token: string;
+    try {
+      token = await jwt(this.#jwkPath, this.#clientId);
+    } catch (error) {
+      this.#logger.error({ error }, "Failed to generate JWT token");
+      throw error;
+    }
+
     const clientSocket = new WebSocket(this.#webSocketUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
+
+    // Update the socket reference immediately
+    this.#webSocket = clientSocket;
+
     const client = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient((request) => {
@@ -91,30 +160,45 @@ export class JsonRpcClient {
 
     clientSocket.on("error", (error) => {
       // Do not throw error. The `on("close")` handler is called, which retries the connection.
-      this.#logger.warn({ error }, "websocket error");
+      this.#logger.warn(
+        { error, attempt: this.#reconnectAttempts },
+        "websocket error"
+      );
     });
 
     clientSocket.on("open", () => {
-      this.#logger.info("connection opened");
+      this.#logger.info(
+        { attempt: this.#reconnectAttempts },
+        "connection opened"
+      );
       // After opening the connection, send the client ID to the server
-      client
-        .request("setClientId", { clientId: this.#clientId })
+      Promise.resolve(
+        client.request("setClientId", { clientId: this.#clientId })
+      )
         .then((response) => {
           this.#logger.info({ response }, "setClientId response");
           this.#backoff?.reset();
+          this.#reconnectAttempts = 0;
           this.#connected.resolve();
+        })
+        .catch((error) => {
+          this.#logger.error(
+            { error },
+            "Failed to send setClientId, closing connection"
+          );
+          clientSocket.close();
         });
     });
 
     clientSocket.on("close", () => {
-      this.#logger.info("connection closed");
-      // Keep looking for the server after closing the connection
-      if (!this.#isShutdown && this.#backoff) {
-        this.#retryTimeout = setTimeout(
-          () => this.create(),
-          this.#backoff.next()
-        );
-      }
+      this.#logger.info(
+        { attempt: this.#reconnectAttempts },
+        "connection closed"
+      );
+      // Reset connection state for reconnection
+      this.#resetConnectionState();
+      // Schedule reconnection attempt
+      this.#scheduleReconnect();
     });
 
     clientSocket.on("message", (data, isBinary) => {
@@ -131,8 +215,6 @@ export class JsonRpcClient {
       // TODO detect broken connection based on https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
       this.#logger.debug("ping");
     });
-
-    this.#webSocket = clientSocket;
 
     client.addMethod("call", async (request: ForwardedRequest) => {
       this.#logger.debug(
@@ -177,15 +259,33 @@ export class JsonRpcClient {
       } as ForwardedResponse;
     });
 
+    // Update the JSON-RPC client reference
+    this.#jsonRpcClient = client;
+
     return client;
   }
 
   async run() {
-    await this.#jsonRpcClient.promise;
+    // Keep the process alive by waiting on the connected promise
+    // This will never resolve if connection keeps failing, which is intentional
+    await this.#connected.promise;
   }
 
   async waitUntilConnected() {
     await this.#connected.promise;
+  }
+
+  /**
+   * Returns the current JSON-RPC client instance
+   * Throws if no client is available (not yet connected or connection failed)
+   */
+  getClient(): JSONRPCServerAndClient {
+    if (!this.#jsonRpcClient) {
+      throw new Error(
+        "JSON-RPC client not available - connection not established"
+      );
+    }
+    return this.#jsonRpcClient;
   }
 
   shutdown() {

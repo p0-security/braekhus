@@ -1,8 +1,8 @@
 import * as jose from "jose";
+import { createLogger } from "log/index.js";
 import { pino } from "pino";
 
 import { PublicKeyGetter } from "../types/index.js";
-import { createLogger } from "log/index.js";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";
