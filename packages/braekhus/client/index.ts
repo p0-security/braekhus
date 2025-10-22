@@ -99,6 +99,7 @@ export class JsonRpcClient {
       this.#webSocket?.terminate();
     }, PING_TIMEOUT_MS);
   }
+  
   async create() {
     let token: string;
     let clientSocket: WebSocket;
