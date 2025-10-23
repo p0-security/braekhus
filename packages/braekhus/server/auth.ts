@@ -1,6 +1,6 @@
 import * as jose from "jose";
-import { createLogger } from "log/index.js";
 
+import { createLogger } from "../log/index.js";
 import { PublicKeyGetter } from "../types/index.js";
 
 const AUTH_PATTERN = /Bearer (.*)/;
@@ -25,7 +25,7 @@ export const validateAuth = async (
   publicKeyGetter: PublicKeyGetter
 ) => {
   if (!authorization) {
-    logger.debug("Authorization header not found")
+    logger.debug("Authorization header not found");
     throw new AuthorizationError();
   }
   const match = authorization.match(AUTH_PATTERN);
