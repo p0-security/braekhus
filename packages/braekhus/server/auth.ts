@@ -1,5 +1,5 @@
 import * as jose from "jose";
-import { createLogger } from "log/index.js";
+import { createLogger } from "../log/index.js";
 
 import { PublicKeyGetter } from "../types/index.js";
 
