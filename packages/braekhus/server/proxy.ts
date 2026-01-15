@@ -1,4 +1,5 @@
 import express from "express";
+import type { Express } from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash-es";
 import { pinoHttp } from "pino-http";
@@ -24,7 +25,7 @@ export const httpProxyApp = (
     forwardedRequestOptions?: ForwardedRequestOptions;
     retryOptions?: RetryOptions;
   }
-) => {
+): Express => {
   const app = express();
   app.use(pinoHttp({ logger, useLevel: "debug" }));
 
