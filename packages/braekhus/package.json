@@ -50,6 +50,7 @@
   },
   "scripts": {
     "build": "yarn clean && tsc --project ./",
+    "build:local": "docker buildx build --platform linux/arm64 --load -t p0security/braekhus:latest -f ../../Dockerfile ../..",
     "clean": "rm -rf ./dist",
     "test": "NODE_ENV=test FORCE_COLOR=1 vitest run",
     "test:pretty": "NODE_ENV=test vitest run | pino-pretty",
