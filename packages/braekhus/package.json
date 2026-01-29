@@ -8,7 +8,7 @@
     "./*": "./dist/*"
   },
   "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/express": "4.17.14",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^18.11.18",
