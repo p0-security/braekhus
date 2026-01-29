@@ -13,12 +13,16 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY ./packages/braekhus/package.json ./packages/braekhus/
 RUN yarn install --immutable && yarn cache clean
 
-
 # Copy tsconfig.json and source files
 # It is very important to exclude node_modules folder from these COPY commands with .dockerignore.
 # Otherwise the node_modules folder created in the previous step with yarn install will be overwritten.
 COPY . ./
 WORKDIR /usr/src/app/packages/braekhus
 RUN yarn build
+
+# Remove devDependencies after building
+WORKDIR /usr/src/app
+RUN yarn workspaces focus --production --all && yarn cache clean
+WORKDIR /usr/src/app/packages/braekhus
 
 ENTRYPOINT ["yarn"]
