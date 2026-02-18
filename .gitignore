@@ -16,3 +16,6 @@ jwk.*.json
 
 # Certificates
 *.pem
+
+# Typescript
+*.tsbuildinfo
