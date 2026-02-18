@@ -30,7 +30,7 @@ const logger = createLogger({ name: "server" });
 type ClientId = string;
 type ChannelId = string;
 
-type AppContext = {
+export type AppContext = {
   rpcPort: number;
   proxyPort: number;
 };
