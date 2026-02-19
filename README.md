@@ -6,6 +6,11 @@ The target server must be able to send requests out from the private network, e.
 
 ## Development
 
+### Lockfile Management
+To enable git submoduling, the lockfile for this repo is committed as `.yarn.lock`. If you're working on this repo in isolation, run `yarn :show-lockfile`. To revert this change, `yarn :hide-lockfile`.
+
+If you experience problems with your `node_modules` after changing the lockfile mode, run `yarn :clean-node-modules`.
+
 ### Running locally
 
 1. Run a target service that HTTP requests will be forwarded to. An easy way is with python: `python3 -m http.server 8000` - this will serve the contents of the folder where the command runs.

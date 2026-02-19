@@ -13,6 +13,9 @@ jobs:
       - uses: actions/checkout@v3
       - run: corepack enable yarn
         shell: bash
+      - name: Show lockfile
+        run: ln -s .yarn.lock yarn.lock
+        shell: bash
       - uses: actions/setup-node@v3
         with:
           node-version: ^20.4.0
