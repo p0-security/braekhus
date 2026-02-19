@@ -26,5 +26,8 @@ jobs:
         run: yarn workspace @p0security/braekhus run test
         working-directory: ./root
       - name: Yarn compile
+        run: yarn workspace @p0security/braekhus exec tsc
+        working-directory: ./root
+      - name: Yarn compile
         run: yarn workspace @p0security/braekhus run build
         working-directory: ./root
