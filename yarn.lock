@@ -824,6 +824,8 @@ __metadata:
     vitest: "npm:^3.1.3"
     ws: "npm:^8.18.1"
     yargs: "npm:^17.7.2"
+  bin:
+    braekhus: ./dist/cli/index.js
   languageName: unknown
   linkType: soft
 

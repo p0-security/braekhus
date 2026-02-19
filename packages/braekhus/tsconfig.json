@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
+    "baseUrl": "src",
+    "rootDir": "src",
     "esModuleInterop": true,
     "module": "node18",
     "moduleResolution": "nodenext",
@@ -13,5 +14,6 @@
     "strict": true,
     "target": "ES2017"
   },
+  "include": ["src/**/*"],
   "exclude": ["**/__mocks__/*", "node_modules/", "dist/"]
 }
