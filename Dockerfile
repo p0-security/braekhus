@@ -9,7 +9,8 @@ FROM node:18.17-bookworm
 RUN corepack enable yarn
 
 WORKDIR /usr/src/app
-COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn.lock yarn.lock
+COPY package.json .yarnrc.yml ./
 COPY ./packages/braekhus/package.json ./packages/braekhus/
 RUN yarn install --immutable && yarn cache clean
 
