@@ -48,7 +48,7 @@
     "yargs": "^17.7.2"
   },
   "scripts": {
-    "build": "yarn clean && tsc --project ./",
+    "build": "tsc",
     "clean": "rm -rf ./dist",
     "test": "NODE_ENV=test FORCE_COLOR=1 vitest run",
     "test:pretty": "NODE_ENV=test vitest run | pino-pretty",
