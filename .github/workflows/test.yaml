@@ -23,8 +23,8 @@ jobs:
         run: yarn install --immutable
         working-directory: ./root
       - name: Yarn unit test
-        run: yarn workspace @p0security/braekhus test
+        run: yarn workspace @p0security/braekhus run test
         working-directory: ./root
       - name: Yarn compile
-        run: yarn workspace @p0security/braekhus build
+        run: yarn workspace @p0security/braekhus run build
         working-directory: ./root
