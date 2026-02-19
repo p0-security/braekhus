@@ -783,9 +783,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@p0security/braekhus@workspace:packages/braekhus":
+"@p0security/braekhus@workspace:real/packages/braekhus":
   version: 0.0.0-use.local
-  resolution: "@p0security/braekhus@workspace:packages/braekhus"
+  resolution: "@p0security/braekhus@workspace:real/packages/braekhus"
   dependencies:
     "@trivago/prettier-plugin-sort-imports": "npm:^5.2.2"
     "@types/express": "npm:4.17.14"

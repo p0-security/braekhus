@@ -1,6 +1,6 @@
 {
     "workspaces": [
-        "packages/*"
+        "real/packages/*"
     ],
     "scripts": {
         "prepare": "husky install"
