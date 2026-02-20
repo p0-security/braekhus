@@ -48,8 +48,8 @@
     "yargs": "^17.7.2"
   },
   "scripts": {
-    "build": "yarn clean && tsc --project ./",
-    "clean": "rm -rf ./dist",
+    "build": "tsc",
+    "clean": "rm -rf ./dist tsconfig.tsbuildinfo",
     "test": "NODE_ENV=test FORCE_COLOR=1 vitest run",
     "test:pretty": "NODE_ENV=test vitest run | pino-pretty",
     "start:dev:server": "NODE_ENV=development tsx watch --clear-screen=false cli/index.ts server",
