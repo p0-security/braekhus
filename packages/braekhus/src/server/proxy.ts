@@ -3,9 +3,9 @@ import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash-es";
 import { pinoHttp } from "pino-http";
 
-import { RetryOptions } from "../client/backoff.ts";
+import type { RetryOptions } from "../client/backoff.ts";
 import { createLogger } from "../log/index.ts";
-import {
+import type {
   CallOptions,
   ForwardedRequest,
   ForwardedRequestOptions,

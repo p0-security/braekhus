@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Backoff } from "../../client/backoff.ts";
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client/index.ts";
-import { App, InitContext, runApp } from "..//index.ts";
+import type { App, InitContext } from "..//index.ts";
+import { runApp } from "..//index.ts";
 import { ensureKey } from "../key-cache.ts";
 import { testHttpServer } from "../testing/testExpressApp.ts";
 

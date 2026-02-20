@@ -1,4 +1,5 @@
-import express, { Express } from "express";
+import type { Express } from "express";
+import express from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
 import {
   JSONRPCClient,
@@ -7,14 +8,16 @@ import {
 } from "json-rpc-2.0";
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 import { pinoHttp } from "pino-http";
-import { ServerOptions, WebSocket, WebSocketServer } from "ws";
+import type { ServerOptions } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 
-import { RetryOptions, retryWithBackoff } from "../client/backoff.ts";
+import type { RetryOptions } from "../client/backoff.ts";
+import { retryWithBackoff } from "../client/backoff.ts";
 import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
-import {
+import type {
   CallOptions,
   ForwardedRequestOptions,
   ForwardedResponse,

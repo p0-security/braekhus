@@ -5,16 +5,13 @@ import {
   JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import { omit } from "lodash-es";
-import { Logger } from "pino";
+import type { Logger } from "pino";
 import WebSocket from "ws";
 
 import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
-import {
-  ForwardedRequest,
-  ForwardedResponse,
-  JQ_HEADER,
-} from "../types/index.ts";
+import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
+import { JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
 import { Backoff } from "./backoff.ts";
 import { jqTransform } from "./filter.ts";
