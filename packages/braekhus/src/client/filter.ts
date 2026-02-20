@@ -1,7 +1,7 @@
 import { isArray } from "lodash-es";
 import { run as jq } from "node-jq";
 
-import { createLogger } from "../log/index.js";
+import { createLogger } from "../log/index.ts";
 
 const logger = createLogger({ name: "filter" });
 

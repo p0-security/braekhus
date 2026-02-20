@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { jqTransform } from "../filter.js";
+import { jqTransform } from "../filter.ts";
 
 const exampleResponse = {
   status: 200,

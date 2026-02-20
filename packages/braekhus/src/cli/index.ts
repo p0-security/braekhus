@@ -2,11 +2,11 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-import { Backoff } from "../client/backoff.js";
-import { JsonRpcClient } from "../client/index.js";
-import { createLogger } from "../log/index.js";
-import { runApp } from "../server/index.js";
-import { ensureKey } from "../server/key-cache.js";
+import { Backoff } from "../client/backoff.ts";
+import { JsonRpcClient } from "../client/index.ts";
+import { createLogger } from "../log/index.ts";
+import { runApp } from "../server/index.ts";
+import { ensureKey } from "../server/key-cache.ts";
 
 const logger = createLogger({ name: "cli" });
 

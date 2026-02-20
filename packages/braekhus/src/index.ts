@@ -1,8 +1,8 @@
-export { runApp } from "./server/index.js";
-export type { AppContext, InitContext } from "./server/index.js";
-export type { RetryOptions } from "./client/backoff.js";
+export { runApp } from "./server/index.ts";
+export type { AppContext, InitContext } from "./server/index.ts";
+export type { RetryOptions } from "./client/backoff.ts";
 export type {
   PublicKeyGetter,
   CallOptions,
   ForwardedRequestOptions,
-} from "./types/index.js";
+} from "./types/index.ts";
