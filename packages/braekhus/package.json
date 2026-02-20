@@ -5,7 +5,10 @@
   "private": true,
   "type": "module",
   "bin": "./dist/cli/index.js",
-  "exports": "./dist/index.js",
+  "exports": {
+    "@p0security/development": "./src/index.ts",
+    "default": "./dist/index.js"
+  },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/express": "4.17.14",
