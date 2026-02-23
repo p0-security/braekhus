@@ -1,14 +1,14 @@
-import { Request } from "express";
-import core from "express-serve-static-core";
-import { IncomingHttpHeaders } from "node:http";
+import type { Request } from "express";
+import type { ParamsDictionary, Query } from "express-serve-static-core";
+import type { IncomingHttpHeaders } from "node:http";
 
 export const JQ_HEADER = "braekhus-response-jq-transform";
 
 export type IncomingRequest = Request<
-  core.ParamsDictionary,
+  ParamsDictionary,
   any,
   any,
-  core.Query,
+  Query,
   Record<string, any>
 >;
 

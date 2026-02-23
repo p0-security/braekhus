@@ -2,12 +2,13 @@ import { Server } from "http";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { Backoff } from "../../client/backoff.js";
+import { Backoff } from "../../client/backoff.ts";
 // TODO replace supertest with axios requests
-import { JsonRpcClient } from "../../client/index.js";
-import { App, InitContext, runApp } from "..//index.js";
-import { ensureKey } from "../key-cache.js";
-import { testHttpServer } from "../testing/testExpressApp.js";
+import { JsonRpcClient } from "../../client/index.ts";
+import type { App, InitContext } from "..//index.ts";
+import { runApp } from "..//index.ts";
+import { ensureKey } from "../key-cache.ts";
+import { testHttpServer } from "../testing/testExpressApp.ts";
 
 const SERVER_RPC_PORT = 18080;
 const SERVER_PROXY_PORT = 18081;

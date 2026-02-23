@@ -1,7 +1,7 @@
 import express, { Router } from "express";
 import { pinoHttp } from "pino-http";
 
-import { createLogger } from "../../log/index.js";
+import { createLogger } from "../../log/index.ts";
 
 const logger = createLogger({ name: "testHttpServer" });
 

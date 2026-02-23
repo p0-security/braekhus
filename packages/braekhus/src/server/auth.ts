@@ -1,7 +1,7 @@
 import * as jose from "jose";
 
-import { createLogger } from "../log/index.js";
-import { PublicKeyGetter } from "../types/index.js";
+import { createLogger } from "../log/index.ts";
+import type { PublicKeyGetter } from "../types/index.ts";
 
 const AUTH_PATTERN = /Bearer (.*)/;
 const ALG = "ES384";

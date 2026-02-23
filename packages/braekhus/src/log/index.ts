@@ -1,4 +1,5 @@
-import { Logger, LoggerOptions, pino } from "pino";
+import type { Logger, LoggerOptions } from "pino";
+import { pino } from "pino";
 import * as pinoSerializers from "pino-std-serializers";
 
 const {
