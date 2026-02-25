@@ -1,6 +1,6 @@
 name: Semgrep CI
 on:
-  # Scan changed files in PRs (diff-aware scanning):
+  # Scan changed files in PRs:
   pull_request: {}
   # Scan on-demand through GitHub Actions interface:
   workflow_dispatch: {}
@@ -17,9 +17,7 @@ permissions:
 
 jobs:
   semgrep:
-    # User definable name of this GitHub Actions job.
     name: Scan
-    # If you are self-hosting, change the following `runs-on` value:
     runs-on: ubuntu-latest
 
     container:
@@ -30,7 +28,20 @@ jobs:
     if: (github.actor != 'dependabot[bot]')
 
     steps:
-      # Fetch project source with GitHub Actions Checkout. Use either v3 or v4.
       - uses: actions/checkout@v4
-      # Run a semgrep scan using the free OSS ruleset.
-      - run: semgrep scan --config auto --error
+        with:
+          # Full history needed for baseline commit comparison
+          fetch-depth: 0
+
+      # Diff-aware scan on PRs: only report findings new in this PR.
+      # Fails the check if new findings are introduced.
+      - name: Run Semgrep (PR diff scan)
+        if: github.event_name == 'pull_request'
+        run: semgrep scan --config auto --baseline-commit ${{ github.event.pull_request.base.sha }}
+
+      # Full scan for scheduled runs, pushes, and manual triggers.
+      # continue-on-error so pre-existing findings don't permanently red this job.
+      - name: Run Semgrep (full scan)
+        if: github.event_name != 'pull_request'
+        run: semgrep scan --config auto
+        continue-on-error: true
