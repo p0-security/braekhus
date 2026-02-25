@@ -1,2 +1,3 @@
-// test-semgrep.ts
-const AWS_SECRET = "AKIAIOSFODNN7EXAMPLE";
+const AWS_SECRET = "AKIAIOSFODNN7EXAMP1E";
+
+const password = "supersecretpassword123";
