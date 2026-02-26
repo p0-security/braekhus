@@ -37,11 +37,11 @@ jobs:
       # Fails the check if new findings are introduced.
       - name: Run Semgrep (PR diff scan)
         if: github.event_name == 'pull_request'
-        run: semgrep scan --config auto --baseline-commit ${{ github.event.pull_request.base.sha }}
+        run: semgrep scan --config auto --config .semgrep/rules/ --baseline-commit ${{ github.event.pull_request.base.sha }}
 
       # Full scan for scheduled runs, pushes, and manual triggers.
       # continue-on-error so pre-existing findings don't permanently red this job.
       - name: Run Semgrep (full scan)
         if: github.event_name != 'pull_request'
-        run: semgrep scan --config auto
+        run: semgrep scan --config auto --config .semgrep/rules/
         continue-on-error: true
