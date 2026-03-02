@@ -33,15 +33,28 @@ jobs:
           # Full history needed for baseline commit comparison
           fetch-depth: 0
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.SEMGREP_RULES_APP_ID }}
+          private_key: ${{ secrets.SEMGREP_RULES_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: p0security/semgrep-rules
+          path: .semgrep-org-rules
+          token: ${{ steps.app-token.outputs.token }}
+
       # Diff-aware scan on PRs: only report findings new in this PR.
       # Fails the check if new findings are introduced.
       - name: Run Semgrep (PR diff scan)
         if: github.event_name == 'pull_request'
-        run: semgrep scan --config auto --config .semgrep/rules/ --baseline-commit ${{ github.event.pull_request.base.sha }}
+        run: semgrep scan --config auto --config .semgrep-org-rules/ --baseline-commit ${{ github.event.pull_request.base.sha }}
 
       # Full scan for scheduled runs, pushes, and manual triggers.
       # continue-on-error so pre-existing findings don't permanently red this job.
       - name: Run Semgrep (full scan)
         if: github.event_name != 'pull_request'
-        run: semgrep scan --config auto --config .semgrep/rules/
+        run: semgrep scan --config auto --config .semgrep-org-rules/
         continue-on-error: true
