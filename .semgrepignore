@@ -1,0 +1,14 @@
+# Semgrep ignore file - follows .gitignore syntax.
+# Add paths or patterns here to exclude them from all scans.
+# To suppress a specific rule on a single line of code, use an inline comment:
+#   some_code()  # nosemgrep: rule-id
+
+# Generated output
+dist/
+
+# Dependencies (semgrep ignores node_modules by default, but explicit is clearer)
+node_modules/
+
+# Test files - intentional patterns here often trigger rules incorrectly
+**/*.test.ts
+**/*.spec.ts

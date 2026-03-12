@@ -1,6 +1,6 @@
 name: Semgrep CI
 on:
-  # Scan changed files in PRs (diff-aware scanning):
+  # Scan changed files in PRs:
   pull_request: {}
   # Scan on-demand through GitHub Actions interface:
   workflow_dispatch: {}
@@ -17,9 +17,7 @@ permissions:
 
 jobs:
   semgrep:
-    # User definable name of this GitHub Actions job.
     name: Scan
-    # If you are self-hosting, change the following `runs-on` value:
     runs-on: ubuntu-latest
 
     container:
@@ -30,12 +28,33 @@ jobs:
     if: (github.actor != 'dependabot[bot]')
 
     steps:
-      # Fetch project source with GitHub Actions Checkout. Use either v3 or v4.
       - uses: actions/checkout@v4
-      # Run the "semgrep ci" command on the command line of the docker image.
-      - run: semgrep ci
-        env:
-          # Connect to Semgrep AppSec Platform through your SEMGREP_APP_TOKEN.
-          # Generate a token from Semgrep AppSec Platform > Settings
-          # and add it to your GitHub secrets.
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        with:
+          # Full history needed for baseline commit comparison
+          fetch-depth: 0
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.SEMGREP_RULES_APP_ID }}
+          private_key: ${{ secrets.SEMGREP_RULES_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: p0security/semgrep-rules
+          path: .semgrep-org-rules
+          token: ${{ steps.app-token.outputs.token }}
+
+      # Diff-aware scan on PRs: only report findings new in this PR.
+      # Fails the check if new findings are introduced.
+      - name: Run Semgrep (PR diff scan)
+        if: github.event_name == 'pull_request'
+        run: semgrep scan --config auto --config .semgrep-org-rules/ --baseline-commit ${{ github.event.pull_request.base.sha }}
+
+      # Full scan for scheduled runs, pushes, and manual triggers.
+      # continue-on-error so pre-existing findings don't permanently red this job.
+      - name: Run Semgrep (full scan)
+        if: github.event_name != 'pull_request'
+        run: semgrep scan --config auto --config .semgrep-org-rules/
+        continue-on-error: true
