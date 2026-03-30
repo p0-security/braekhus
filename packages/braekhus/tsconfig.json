@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": "src",
     "rootDir": "src",
     "esModuleInterop": true,
     "module": "node18",
