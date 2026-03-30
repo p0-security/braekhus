@@ -39,11 +39,11 @@ jobs:
         with:
           app-id: ${{ secrets.SEMGREP_RULES_APP_ID }}
           private-key: ${{ secrets.SEMGREP_RULES_APP_PRIVATE_KEY }}
-          owner: p0security
+          owner: p0-security
 
       - uses: actions/checkout@v4
         with:
-          repository: p0security/p0-semgrep-rules
+          repository: p0-security/p0-semgrep-rules
           path: .semgrep-org-rules
           token: ${{ steps.app-token.outputs.token }}
 
