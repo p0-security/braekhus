@@ -40,6 +40,7 @@ jobs:
           app-id: ${{ secrets.SEMGREP_RULES_APP_ID }}
           private-key: ${{ secrets.SEMGREP_RULES_APP_PRIVATE_KEY }}
           owner: p0-security
+          repositories: p0-semgrep-rules
 
       - uses: actions/checkout@v4
         with:
