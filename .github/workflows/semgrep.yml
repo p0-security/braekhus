@@ -1,8 +1,7 @@
 name: Semgrep CI
+
 on:
-  # Scan changed files in PRs:
   pull_request: {}
-  # Scan on-demand through GitHub Actions interface:
   workflow_dispatch: {}
   push:
     branches:
@@ -12,51 +11,9 @@ on:
   schedule:
     - cron: 0 1 * * *
 
-permissions:
-  contents: read
-
 jobs:
   semgrep:
-    name: Scan
-    runs-on: ubuntu-latest
-
-    container:
-      # A Docker image with Semgrep installed. Do not change this.
-      image: semgrep/semgrep
-
-    # Skip any PR created by dependabot to avoid permission issues:
-    if: (github.actor != 'dependabot[bot]')
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Full history needed for baseline commit comparison
-          fetch-depth: 0
-
-      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.SEMGREP_RULES_APP_ID }}
-          private-key: ${{ secrets.SEMGREP_RULES_APP_PRIVATE_KEY }}
-          owner: p0-security
-          repositories: p0-semgrep-rules
-
-      - uses: actions/checkout@v4
-        with:
-          repository: p0-security/p0-semgrep-rules
-          path: .semgrep-org-rules
-          token: ${{ steps.app-token.outputs.token }}
-
-      # Diff-aware scan on PRs: only report findings new in this PR.
-      # Fails the check if new findings are introduced.
-      - name: Run Semgrep (PR diff scan)
-        if: github.event_name == 'pull_request'
-        run: semgrep scan --config auto --config .semgrep-org-rules/ --baseline-commit ${{ github.event.pull_request.base.sha }}
-
-      # Full scan for scheduled runs, pushes, and manual triggers.
-      # continue-on-error so pre-existing findings don't permanently red this job.
-      - name: Run Semgrep (full scan)
-        if: github.event_name != 'pull_request'
-        run: semgrep scan --config auto --config .semgrep-org-rules/
-        continue-on-error: true
+    uses: p0-security/workflows-public/.github/workflows/semgrep-reusable.yml@main
+    secrets:
+      SEMGREP_RULES_APP_ID: ${{ secrets.SEMGREP_RULES_APP_ID }}
+      SEMGREP_RULES_APP_PRIVATE_KEY: ${{ secrets.SEMGREP_RULES_APP_PRIVATE_KEY }}
