@@ -789,6 +789,7 @@ __metadata:
   dependencies:
     "@trivago/prettier-plugin-sort-imports": "npm:^5.2.2"
     "@types/express": "npm:4.17.14"
+    "@types/express-serve-static-core": "npm:4.19.6"
     "@types/lodash-es": "npm:^4.17.12"
     "@types/node": "npm:^18.11.18"
     "@types/supertest": "npm:^2.0.12"
@@ -801,7 +802,6 @@ __metadata:
     eslint-plugin-n: "npm:^17.23.1"
     eslint-plugin-promise: "npm:^7.2.1"
     express: "npm:^4.21.2"
-    express-serve-static-core: "npm:^0.1.1"
     husky: "npm:^8.0.3"
     jose: "npm:^5.10.0"
     jscpd: "npm:^4.0.5"
@@ -1066,7 +1066,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/express-serve-static-core@npm:^4.17.18":
+"@types/express-serve-static-core@npm:4.19.6, @types/express-serve-static-core@npm:^4.17.18":
   version: 4.19.6
   resolution: "@types/express-serve-static-core@npm:4.19.6"
   dependencies:
@@ -3086,13 +3086,6 @@ __metadata:
   version: 3.1.2
   resolution: "exponential-backoff@npm:3.1.2"
   checksum: 10c0/d9d3e1eafa21b78464297df91f1776f7fbaa3d5e3f7f0995648ca5b89c069d17055033817348d9f4a43d1c20b0eab84f75af6991751e839df53e4dfd6f22e844
-  languageName: node
-  linkType: hard
-
-"express-serve-static-core@npm:^0.1.1":
-  version: 0.1.1
-  resolution: "express-serve-static-core@npm:0.1.1"
-  checksum: 10c0/ca423f71ee2dfd0f39bf5b0d18c71d4c06e3d823c884b215ba8ddd9ba9cc80812159d9be01a9a45a1bbc77f06c96bde8e6220983aa6561de591d806c9426362d
   languageName: node
   linkType: hard
 
