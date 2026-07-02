@@ -259,7 +259,10 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   private removeChannel(channelId: ChannelId) {
     const clientId = this.#clientIds.get(channelId);
     this.#clientIds.delete(channelId);
-    if (clientId) {
+    // Only clear the forward mapping if it still points at this channel.
+    // If the client already reconnected on a new channel, its mapping has
+    // moved on and this (now-stale) channelId must not clobber it.
+    if (clientId && this.#channelIds.get(clientId) === channelId) {
       this.#channelIds.delete(clientId);
     }
   }
