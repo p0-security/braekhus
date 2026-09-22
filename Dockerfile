@@ -5,8 +5,11 @@
 # source: https://github.com/nodejs/docker-node/blob/main/24/bookworm/Dockerfile
 # best practices: https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md
 
-ARG BASE=node:24-bookworm@sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059
-FROM ${BASE} AS build
+# Build on the full image. The published stage is slim so the runtime image
+# does not ship ImageMagick, compilers, or -dev packages.
+ARG BUILD_BASE=node:24-bookworm@sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059
+ARG RUN_BASE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+FROM ${BUILD_BASE} AS build
 RUN corepack enable yarn
 
 WORKDIR /usr/src/app
@@ -27,10 +30,10 @@ RUN yarn build
 # stage is production-only -- no second install.
 RUN yarn workspaces focus @p0security/braekhus --production && yarn cache clean
 
-# Deploy stage: same base, pinned once via ARG BASE (no FROM change). Carry over
-# the built app from the build stage -- production node_modules plus the compiled
-# dist -- instead of reinstalling.
-FROM ${BASE} AS run
+# Deploy stage: slim base. Carry over the built app from the build stage,
+# production node_modules plus the compiled dist, instead of reinstalling.
+# node-jq's jq binary is in those node_modules, so it must survive this copy.
+FROM ${RUN_BASE} AS run
 # Bake the Yarn release into the image at build time. The single COPY below carries
 # the app but not Corepack's download cache, so a bare `corepack enable yarn` would
 # make ENTRYPOINT ["yarn"] fetch Yarn from repo.yarnpkg.com on every container
