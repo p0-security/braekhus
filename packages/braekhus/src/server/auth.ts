@@ -23,7 +23,7 @@ export class AuthorizationError extends Error {
 export const validateAuth = async (
   authorization: string | undefined,
   publicKeyGetter: PublicKeyGetter
-) => {
+): Promise<string> => {
   if (!authorization) {
     logger.debug("Authorization header not found");
     throw new AuthorizationError();
@@ -52,4 +52,5 @@ export const validateAuth = async (
     logger.debug({ clientId, error }, "Error during verification");
     throw new AuthorizationError();
   }
+  return clientId;
 };
