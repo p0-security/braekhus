@@ -46,7 +46,8 @@ export const sleep = (millis: number): Promise<void> => {
 
 export const retryWithBackoff = async <T>(
   options: RetryOptions,
-  func: () => Promise<T>
+  func: () => Promise<T>,
+  shouldRetry: (error: unknown) => boolean = () => true
 ) => {
   const result = deferral<T>();
 
@@ -60,7 +61,7 @@ export const retryWithBackoff = async <T>(
         return;
       } catch (e: any) {
         count++;
-        if (count > maxRetries) {
+        if (count > maxRetries || !shouldRetry(e)) {
           result.reject(e);
           return;
         }

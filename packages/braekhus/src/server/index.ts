@@ -24,7 +24,7 @@ import type {
   PublicKeyGetter,
 } from "../types/index.ts";
 import { validateAuth } from "./auth.ts";
-import { ChannelNotFoundError } from "./error.ts";
+import { ChannelNotFoundError, ClientNotFoundError } from "./error.ts";
 import { httpProxyApp } from "./proxy.ts";
 import { httpError } from "./util.ts";
 
@@ -295,7 +295,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   ) {
     const channelId = this.#channelIds.get(clientId);
     if (!channelId) {
-      throw new Error(`Client not found: ${clientId}`);
+      throw new ClientNotFoundError(`Client not found: ${clientId}`);
     }
     this.#logger.debug({ channelId, method, request }, "Calling");
     return this.call(channelId, method, request, callOptions);
@@ -306,11 +306,14 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     request: any,
     clientId: ClientId,
     callOptions?: CallOptions,
-    retryOptions?: RetryOptions
+    retryOptions?: RetryOptions,
+    shouldRetry?: (error: unknown) => boolean
   ) {
     if (retryOptions) {
-      return await retryWithBackoff(retryOptions, () =>
-        this.#callClient(method, request, clientId, callOptions)
+      return await retryWithBackoff(
+        retryOptions,
+        () => this.#callClient(method, request, clientId, callOptions),
+        shouldRetry
       );
     }
     return this.#callClient(method, request, clientId, callOptions);
