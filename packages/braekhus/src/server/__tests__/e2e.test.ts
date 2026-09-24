@@ -1,10 +1,17 @@
 import { Server } from "http";
+import {
+  JSONRPCClient,
+  JSONRPCServer,
+  JSONRPCServerAndClient,
+} from "json-rpc-2.0";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import WebSocket from "ws";
 
 import { Backoff } from "../../client/backoff.ts";
 // TODO replace supertest with axios requests
 import { JsonRpcClient } from "../../client/index.ts";
+import { jwt } from "../../client/jwks.ts";
 import type { App, InitContext } from "..//index.ts";
 import { runApp } from "..//index.ts";
 import { ensureKey } from "../key-cache.ts";
@@ -143,6 +150,65 @@ describe("Proxy server starts up first", () => {
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 404,
+        })
+      );
+    });
+  });
+
+  describe("when a client tries to claim a clientId other than its authenticated identity", () => {
+    const ATTACKER_CLIENT_ID = "attackerClientId";
+    const VICTIM_CLIENT_ID = "victimClientId";
+    let attackerSocket: WebSocket;
+
+    afterAll(() => {
+      attackerSocket?.terminate();
+    });
+
+    it("rejects setClientId and does not hijack the victim's channel", async () => {
+      const token = await jwt(".", ATTACKER_CLIENT_ID);
+      attackerSocket = new WebSocket(`ws://localhost:${SERVER_RPC_PORT}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const rpcClient = new JSONRPCServerAndClient(
+        new JSONRPCServer(),
+        new JSONRPCClient((request) => {
+          attackerSocket.send(JSON.stringify(request));
+          return Promise.resolve();
+        })
+      );
+      // If the hijack succeeded, forwarded requests to the victim's clientId
+      // would land here - respond with an identifiable marker so a
+      // successful hijack is observable, rather than relying on the
+      // attacker's channel merely lacking a "call" handler (which 502s
+      // either way, masking a would-be-successful hijack).
+      rpcClient.addMethod("call", async () => ({
+        headers: {},
+        status: 200,
+        statusText: "OK",
+        data: "hijacked",
+      }));
+      attackerSocket.on("message", (data) => {
+        rpcClient.receiveAndSend(JSON.parse(data.toString("utf-8")));
+      });
+      await new Promise((resolve, reject) => {
+        attackerSocket.on("open", resolve);
+        attackerSocket.on("error", reject);
+      });
+
+      // Authenticated as ATTACKER_CLIENT_ID, but attempting to claim
+      // VICTIM_CLIENT_ID's channel via setClientId.
+      await expect(
+        rpcClient.request("setClientId", { clientId: VICTIM_CLIENT_ID })
+      ).rejects.toBeDefined();
+
+      // The victim's clientId must still be unroutable - if the hijack had
+      // succeeded, this would return the attacker's "hijacked" marker
+      // instead of 502ing.
+      await expect(
+        request(server.expressApp).get(`/client/${VICTIM_CLIENT_ID}`)
+      ).resolves.toMatchObject(
+        expect.objectContaining({
+          status: 502,
         })
       );
     });
