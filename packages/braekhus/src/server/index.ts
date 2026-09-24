@@ -110,6 +110,8 @@ export const runApp = (appParams: {
 export class JsonRpcServer {
   #serverSocket: WebSocketServer;
   #channels: Map<ChannelId, JSONRPCServerAndClient<void, void>> = new Map();
+  // Sockets that answered the last ping, or connected since it was sent
+  #alive: WeakSet<WebSocket> = new WeakSet();
   #logger: Logger;
   #intervalTimer: NodeJS.Timeout;
 
@@ -125,6 +127,7 @@ export class JsonRpcServer {
     this.#serverSocket = new WebSocketServer(options);
     this.#serverSocket.on("connection", (ws) => {
       const channelId = randomUUID();
+      this.#alive.add(ws);
 
       const channel = new JSONRPCServerAndClient(
         new JSONRPCServer(),
@@ -148,7 +151,10 @@ export class JsonRpcServer {
         const message = data.toString("utf-8");
         channel.receiveAndSend(JSON.parse(message));
       });
-      ws.on("pong", () => this.#logger.debug("pong"));
+      ws.on("pong", () => {
+        this.#logger.debug("pong");
+        this.#alive.add(ws);
+      });
       ws.on("error", (err) => this.#logger.error(err));
       ws.on("close", () => {
         onChannelClose(channelId);
@@ -224,9 +230,16 @@ export class JsonRpcServer {
   }
 
   private async healthCheck() {
+    // See https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
     this.#serverSocket.clients.forEach((ws) => {
-      // TODO detect broken connection based on https://github.com/websockets/ws#how-to-detect-and-close-broken-connections
-      ws.ping();
+      if (this.#alive.has(ws)) {
+        this.#alive.delete(ws);
+        ws.ping();
+      } else {
+        // Terminating fires the "close" handler, which removes the socket's route
+        this.#logger.warn("Pong not received - terminating connection");
+        ws.terminate();
+      }
     });
   }
 }
