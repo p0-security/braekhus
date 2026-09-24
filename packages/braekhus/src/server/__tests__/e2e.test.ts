@@ -137,6 +137,17 @@ describe("Proxy server starts up first", () => {
       );
     });
 
+    it("keeps the status code of a chunked response", async () => {
+      await expect(
+        request(server.expressApp).get("/client/testClientId/chunked/error")
+      ).resolves.toMatchObject(
+        expect.objectContaining({
+          status: 503,
+          body: { error: "unavailable" },
+        })
+      );
+    });
+
     it("returns 404 if path does not exists in target", async () => {
       await expect(
         request(server.expressApp).get("/client/testClientId/unhappy/path")
