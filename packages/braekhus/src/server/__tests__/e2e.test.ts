@@ -176,6 +176,17 @@ describe("Proxy server starts up first", () => {
           return Promise.resolve();
         })
       );
+      // If the hijack succeeded, forwarded requests to the victim's clientId
+      // would land here - respond with an identifiable marker so a
+      // successful hijack is observable, rather than relying on the
+      // attacker's channel merely lacking a "call" handler (which 502s
+      // either way, masking a would-be-successful hijack).
+      rpcClient.addMethod("call", async () => ({
+        headers: {},
+        status: 200,
+        statusText: "OK",
+        data: "hijacked",
+      }));
       attackerSocket.on("message", (data) => {
         rpcClient.receiveAndSend(JSON.parse(data.toString("utf-8")));
       });
@@ -190,8 +201,9 @@ describe("Proxy server starts up first", () => {
         rpcClient.request("setClientId", { clientId: VICTIM_CLIENT_ID })
       ).rejects.toBeDefined();
 
-      // The victim's clientId must still be unroutable - the hijack did not
-      // register a channel for it.
+      // The victim's clientId must still be unroutable - if the hijack had
+      // succeeded, this would return the attacker's "hijacked" marker
+      // instead of 502ing.
       await expect(
         request(server.expressApp).get(`/client/${VICTIM_CLIENT_ID}`)
       ).resolves.toMatchObject(
