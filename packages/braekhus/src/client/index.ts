@@ -121,7 +121,9 @@ export class JsonRpcClient {
         } catch (error) {
           return Promise.reject(error);
         }
-      })
+      }),
+      // The default listener prints the raw payload to stdout. The warn on receiveAndSend's rejection is the only record.
+      { errorListener: () => {} }
     );
 
     clientSocket.on("error", (error) => {
