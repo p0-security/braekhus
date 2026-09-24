@@ -135,7 +135,9 @@ export class JsonRpcServer {
           } catch (error) {
             return Promise.reject(error);
           }
-        })
+        }),
+        // The default listener prints the raw payload to stdout. The warn on receiveAndSend's rejection is the only record.
+        { errorListener: () => {} }
       );
 
       onChannelConnection(channelId, channel);
@@ -145,8 +147,19 @@ export class JsonRpcServer {
           this.#logger.warn("Message in binary format is not supported");
           return;
         }
-        const message = data.toString("utf-8");
-        channel.receiveAndSend(JSON.parse(message));
+        // A malformed frame must not take down the process, which would drop every other client's tunnel
+        let message: any;
+        try {
+          message = JSON.parse(data.toString("utf-8"));
+        } catch (error) {
+          this.#logger.warn({ channelId, error }, "Message is not valid JSON");
+          return;
+        }
+        channel
+          .receiveAndSend(message)
+          .catch((error) =>
+            this.#logger.warn({ channelId, error }, "Error handling message")
+          );
       });
       ws.on("pong", () => this.#logger.debug("pong"));
       ws.on("error", (err) => this.#logger.error(err));
