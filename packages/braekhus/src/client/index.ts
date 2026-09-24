@@ -154,8 +154,19 @@ export class JsonRpcClient {
         this.#logger.warn("Message in binary format is not supported");
         return;
       }
-      const message = data.toString("utf-8");
-      client.receiveAndSend(JSON.parse(message));
+      // A malformed frame must not take down the process
+      let message: any;
+      try {
+        message = JSON.parse(data.toString("utf-8"));
+      } catch (error) {
+        this.#logger.warn({ error }, "Message is not valid JSON");
+        return;
+      }
+      client
+        .receiveAndSend(message)
+        .catch((error) =>
+          this.#logger.warn({ error }, "Error handling message")
+        );
     });
 
     clientSocket.on("ping", () => {
