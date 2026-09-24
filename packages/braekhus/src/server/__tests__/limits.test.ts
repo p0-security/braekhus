@@ -1,20 +1,28 @@
+import * as jose from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 
-import { jwt } from "../../client/jwks.ts";
 import {
   WEBSOCKET_MAX_FRAGMENTS,
   WEBSOCKET_MAX_PAYLOAD_BYTES,
 } from "../../common/constants.ts";
 import type { App } from "../index.ts";
 import { runApp } from "../index.ts";
-import { ensureKey } from "../key-cache.ts";
 
 const SERVER_RPC_PORT = 18090;
 const SERVER_PROXY_PORT = 18091;
+const CLIENT_ID = "limitsTestClientId";
+
+// Keeps the key pair in memory so this file does not race e2e.test.ts to create jwk.*.json.
+const keys = jose.generateKeyPair("ES384", { extractable: true });
 
 const connect = async () => {
-  const token = await jwt(".", "limitsTestClientId");
+  const token = await new jose.SignJWT({})
+    .setProtectedHeader({ alg: "ES384" })
+    .setAudience("p0.dev")
+    .setSubject(CLIENT_ID)
+    .setExpirationTime("1h")
+    .sign((await keys).privateKey);
   const socket = new WebSocket(`ws://localhost:${SERVER_RPC_PORT}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -50,7 +58,7 @@ describe("websocket limits", () => {
   beforeAll(() => {
     server = runApp({
       appContext: { rpcPort: SERVER_RPC_PORT, proxyPort: SERVER_PROXY_PORT },
-      publicKeyGetter: ensureKey,
+      publicKeyGetter: async () => jose.exportJWK((await keys).publicKey),
     });
   });
 
