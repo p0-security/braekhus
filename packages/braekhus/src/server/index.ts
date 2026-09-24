@@ -15,7 +15,12 @@ import { WebSocket, WebSocketServer } from "ws";
 
 import type { RetryOptions } from "../client/backoff.ts";
 import { retryWithBackoff } from "../client/backoff.ts";
-import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants.ts";
+import {
+  DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS,
+  WEBSOCKET_MAX_BUFFERED_CHUNKS,
+  WEBSOCKET_MAX_FRAGMENTS,
+  WEBSOCKET_MAX_PAYLOAD_BYTES,
+} from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 import type {
   CallOptions,
@@ -27,6 +32,19 @@ import { validateAuth } from "./auth.ts";
 import { ChannelNotFoundError } from "./error.ts";
 import { httpProxyApp } from "./proxy.ts";
 import { httpError } from "./util.ts";
+
+// ws 8.21 added these options, but @types/ws 8.18.1 does not declare them yet.
+declare module "ws" {
+  namespace WebSocket {
+    interface ServerOptions<
+      U extends typeof WebSocket = typeof WebSocket,
+      V extends typeof IncomingMessage = typeof IncomingMessage,
+    > {
+      maxBufferedChunks?: number | undefined;
+      maxFragments?: number | undefined;
+    }
+  }
+}
 
 const logger = createLogger({ name: "server" });
 
@@ -330,7 +348,12 @@ export class JsonRpcApp {
     this.#logger = createLogger({ name: "JsonRpcApp" });
     this.#httpServer = httpServer;
     this.#rpcServer = new RemoteClientRpcServer(
-      { noServer: true },
+      {
+        noServer: true,
+        maxPayload: WEBSOCKET_MAX_PAYLOAD_BYTES,
+        maxFragments: WEBSOCKET_MAX_FRAGMENTS,
+        maxBufferedChunks: WEBSOCKET_MAX_BUFFERED_CHUNKS,
+      },
       initContext
     );
 
