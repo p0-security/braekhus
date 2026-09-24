@@ -5,6 +5,9 @@ import { createLogger } from "../../log/index.ts";
 
 const logger = createLogger({ name: "testHttpServer" });
 
+/** Methods of requests that reached `/count`, in arrival order. Tests clear it between cases. */
+export const countedRequests: string[] = [];
+
 export const testHttpServer = (port: number) => {
   const router = Router();
 
@@ -14,6 +17,11 @@ export const testHttpServer = (port: number) => {
 
   router.get("/happy/path", (req, res) => {
     res.send("hello");
+  });
+
+  router.all("/count", (req, res) => {
+    countedRequests.push(req.method);
+    setTimeout(() => res.send("counted"), Number(req.query.delayMillis ?? 0));
   });
 
   const app = express();

@@ -1,6 +1,6 @@
 import { Server } from "http";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { Backoff } from "../../client/backoff.ts";
 // TODO replace supertest with axios requests
@@ -8,7 +8,7 @@ import { JsonRpcClient } from "../../client/index.ts";
 import type { App, InitContext } from "..//index.ts";
 import { runApp } from "..//index.ts";
 import { ensureKey } from "../key-cache.ts";
-import { testHttpServer } from "../testing/testExpressApp.ts";
+import { countedRequests, testHttpServer } from "../testing/testExpressApp.ts";
 
 const SERVER_RPC_PORT = 18080;
 const SERVER_PROXY_PORT = 18081;
@@ -19,11 +19,15 @@ type Client = {
   httpServer: Server;
 };
 
-const runServer = (initContext?: InitContext) => {
+const runServer = (
+  initContext?: InitContext,
+  options?: Pick<Parameters<typeof runApp>[0], "callOptions" | "retryOptions">
+) => {
   return runApp({
     appContext: { rpcPort: SERVER_RPC_PORT, proxyPort: SERVER_PROXY_PORT },
     publicKeyGetter: ensureKey,
     initContext,
+    ...options,
   });
 };
 
@@ -176,4 +180,78 @@ describe("Client starts up first", () => {
     server = runServer();
     await client.jsonRpcClient.waitUntilConnected();
   }, 15000);
+});
+
+describe("Retries when the RPC call times out", () => {
+  let client: Client;
+  let server: App;
+
+  beforeAll(async () => {
+    server = runServer(undefined, {
+      callOptions: { timeoutMillis: 200 },
+      retryOptions: { startMillis: 50, maxMillis: 50, maxRetries: 2 },
+    });
+    client = await runClient(true);
+  });
+
+  beforeEach(() => {
+    countedRequests.length = 0;
+  });
+
+  afterAll(() => {
+    client?.jsonRpcClient?.shutdown();
+    client?.httpServer?.close();
+    server?.expressHttpServer?.close();
+    server?.jsonRpcApp?.shutdown();
+  });
+
+  it.each(["POST", "PATCH", "PUT", "DELETE"])(
+    "sends a timed-out %s to the target once",
+    async (method) => {
+      const response = await request(server.expressApp)[
+        method.toLowerCase() as "post" | "patch" | "put" | "delete"
+      ]("/client/testClientId/count?delayMillis=1000");
+      expect(response.status).toBe(504);
+      expect(countedRequests).toEqual([method]);
+    }
+  );
+
+  it("retries a timed-out GET", async () => {
+    const response = await request(server.expressApp).get(
+      "/client/testClientId/count?delayMillis=1000"
+    );
+    expect(response.status).toBe(504);
+    expect(countedRequests).toEqual(["GET", "GET", "GET"]);
+  });
+});
+
+describe("Retries while the client is connecting", () => {
+  let client: Client;
+  let server: App;
+
+  beforeAll(() => {
+    countedRequests.length = 0;
+    server = runServer(undefined, {
+      retryOptions: { startMillis: 100, maxMillis: 100, maxRetries: 30 },
+    });
+  });
+
+  afterAll(() => {
+    client?.jsonRpcClient?.shutdown();
+    client?.httpServer?.close();
+    server?.expressHttpServer?.close();
+    server?.jsonRpcApp?.shutdown();
+  });
+
+  it("retries a POST that was not sent because the client was not connected", async () => {
+    const response = request(server.expressApp)
+      .post("/client/testClientId/count")
+      .then((response) => response);
+    client = await runClient(true);
+    await expect(response).resolves.toMatchObject({
+      status: 200,
+      text: "counted",
+    });
+    expect(countedRequests).toEqual(["POST"]);
+  });
 });

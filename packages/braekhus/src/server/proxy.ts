@@ -11,11 +11,16 @@ import type {
   ForwardedRequestOptions,
   IncomingRequest,
 } from "../types/index.ts";
+import { isUnsentError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
 
 const logger = createLogger({ name: "proxy" });
 
 const PATH_REGEXP = /\/client\/([^/]+)(.*)/;
+
+// After a timeout the target may still process the request, so only these methods are retried then.
+// Other methods are retried only when the request was never sent to the client.
+const RETRY_AFTER_TIMEOUT_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export const httpProxyApp = (
   rpcServer: RemoteClientRpcServer,
@@ -58,7 +63,8 @@ export const httpProxyApp = (
         request,
         clientId,
         options?.callOptions,
-        options?.retryOptions
+        options?.retryOptions,
+        RETRY_AFTER_TIMEOUT_METHODS.has(req.method) ? undefined : isUnsentError
       );
       const isChunked =
         response.headers["transfer-encoding"]?.trim() === "chunked";
