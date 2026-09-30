@@ -37,11 +37,12 @@ describe("JsonRpcServer receiving a malformed message", () => {
     await new Promise((resolve) => ws.once("open", resolve));
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     warn?.mockRestore();
     ws?.close();
     server?.shutdown();
-    httpServer?.close();
+    // Closing is asynchronous; the port stays bound until it completes
+    await new Promise((resolve) => httpServer.close(() => resolve(undefined)));
   });
 
   // Vitest fails the run on an uncaught exception or unhandled rejection, which is what these messages caused
