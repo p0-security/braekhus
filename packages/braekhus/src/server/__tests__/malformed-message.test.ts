@@ -1,0 +1,71 @@
+import { Server, createServer } from "http";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { WebSocket } from "ws";
+
+import { JsonRpcServer } from "../index.ts";
+
+const PORT = 18093;
+
+const nextMessage = (ws: WebSocket) =>
+  new Promise<any>((resolve) =>
+    ws.once("message", (data) => resolve(JSON.parse(data.toString())))
+  );
+
+describe("JsonRpcServer receiving a malformed message", () => {
+  let server: JsonRpcServer;
+  let httpServer: Server;
+  let ws: WebSocket;
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  beforeAll(async () => {
+    // json-rpc-2.0 captures console.warn when the channel is constructed
+    warn = vi.spyOn(console, "warn");
+    server = new JsonRpcServer(
+      { noServer: true },
+      (_channelId, channel) => channel.addMethod("echo", (params) => params),
+      () => {}
+    );
+    // The connection handler requires an identity established during the upgrade
+    httpServer = createServer();
+    httpServer.on("upgrade", (request, socket, head) =>
+      server.handleUpgrade(request, socket, head as Buffer, "testClientId")
+    );
+    await new Promise((resolve) =>
+      httpServer.listen(PORT, resolve as () => void)
+    );
+    ws = new WebSocket(`ws://localhost:${PORT}`);
+    await new Promise((resolve) => ws.once("open", resolve));
+  });
+
+  afterAll(async () => {
+    warn?.mockRestore();
+    ws?.close();
+    server?.shutdown();
+    // Closing is asynchronous; the port stays bound until it completes
+    await new Promise((resolve) => httpServer.close(() => resolve(undefined)));
+  });
+
+  // Vitest fails the run on an uncaught exception or unhandled rejection, which is what these messages caused
+  it.each([
+    ["text that is not JSON", "not json"],
+    ["JSON that is not JSON-RPC", '{"foo":1}'],
+    ["a JSON array of non-messages", "[1,2]"],
+    ["JSON null", "null"],
+    ["a JSON string", '"hello"'],
+    ["a JSON number", "1"],
+    ["a JSON boolean", "true"],
+  ])("keeps serving the channel after %s", async (_name, frame) => {
+    warn.mockClear();
+    ws.send(frame);
+    const reply = nextMessage(ws);
+    ws.send(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "echo", params: [1] })
+    );
+    await expect(reply).resolves.toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      result: [1],
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
