@@ -1,3 +1,4 @@
+import { Server, createServer } from "http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
@@ -12,6 +13,7 @@ const nextMessage = (ws: WebSocket) =>
 
 describe("JsonRpcServer receiving a malformed message", () => {
   let server: JsonRpcServer;
+  let httpServer: Server;
   let ws: WebSocket;
   let warn: ReturnType<typeof vi.spyOn>;
 
@@ -19,9 +21,17 @@ describe("JsonRpcServer receiving a malformed message", () => {
     // json-rpc-2.0 captures console.warn when the channel is constructed
     warn = vi.spyOn(console, "warn");
     server = new JsonRpcServer(
-      { port: PORT },
+      { noServer: true },
       (_channelId, channel) => channel.addMethod("echo", (params) => params),
       () => {}
+    );
+    // The connection handler requires an identity established during the upgrade
+    httpServer = createServer();
+    httpServer.on("upgrade", (request, socket, head) =>
+      server.handleUpgrade(request, socket, head as Buffer, "testClientId")
+    );
+    await new Promise((resolve) =>
+      httpServer.listen(PORT, resolve as () => void)
     );
     ws = new WebSocket(`ws://localhost:${PORT}`);
     await new Promise((resolve) => ws.once("open", resolve));
@@ -31,6 +41,7 @@ describe("JsonRpcServer receiving a malformed message", () => {
     warn?.mockRestore();
     ws?.close();
     server?.shutdown();
+    httpServer?.close();
   });
 
   // Vitest fails the run on an uncaught exception or unhandled rejection, which is what these messages caused

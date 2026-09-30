@@ -38,6 +38,13 @@ export type AppContext = {
   proxyPort: number;
 };
 
+// The `authorization` header is validated (and its `clientId` extracted) once,
+// during the WebSocket upgrade, before `ws` ever emits "connection" — this is
+// how that verified identity survives to reach the "connection" listener.
+type AuthenticatedIncomingMessage = InstanceType<typeof IncomingMessage> & {
+  authenticatedClientId?: ClientId;
+};
+
 export type InitContext = {
   clientIds: Map<ChannelId, ClientId>;
 };
@@ -117,60 +124,73 @@ export class JsonRpcServer {
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
     onChannelConnection: (
       channelId: ChannelId,
-      channel: JSONRPCServerAndClient
+      channel: JSONRPCServerAndClient,
+      authenticatedClientId: ClientId
     ) => void,
     onChannelClose: (channelId: ChannelId) => void
   ) {
     this.#logger = createLogger({ name: "JsonRpcServer" });
     this.#serverSocket = new WebSocketServer(options);
-    this.#serverSocket.on("connection", (ws) => {
-      const channelId = randomUUID();
+    this.#serverSocket.on(
+      "connection",
+      (ws, request: AuthenticatedIncomingMessage) => {
+        const authenticatedClientId = request.authenticatedClientId;
+        if (!authenticatedClientId) {
+          this.#logger.error("Connection missing authenticated client ID");
+          ws.close();
+          return;
+        }
+        const channelId = randomUUID();
 
-      const channel = new JSONRPCServerAndClient(
-        new JSONRPCServer(),
-        new JSONRPCClient((request) => {
-          try {
-            ws.send(JSON.stringify(request));
-            return Promise.resolve();
-          } catch (error) {
-            return Promise.reject(error);
+        const channel = new JSONRPCServerAndClient(
+          new JSONRPCServer(),
+          new JSONRPCClient((request) => {
+            try {
+              ws.send(JSON.stringify(request));
+              return Promise.resolve();
+            } catch (error) {
+              return Promise.reject(error);
+            }
+          }),
+          // The default listener prints the raw payload to stdout. The warn on receiveAndSend's rejection is the only record.
+          { errorListener: () => {} }
+        );
+
+        onChannelConnection(channelId, channel, authenticatedClientId);
+
+        ws.on("message", (data, isBinary) => {
+          if (isBinary) {
+            this.#logger.warn("Message in binary format is not supported");
+            return;
           }
-        }),
-        // The default listener prints the raw payload to stdout. The warn on receiveAndSend's rejection is the only record.
-        { errorListener: () => {} }
-      );
+          // A malformed frame must not take down the process, which would drop every other client's tunnel
+          let message: any;
+          try {
+            message = JSON.parse(data.toString("utf-8"));
+          } catch (error) {
+            this.#logger.warn(
+              { channelId, error },
+              "Message is not valid JSON"
+            );
+            return;
+          }
+          channel
+            .receiveAndSend(message)
+            .catch((error) =>
+              this.#logger.warn({ channelId, error }, "Error handling message")
+            );
+        });
+        ws.on("pong", () => this.#logger.debug("pong"));
+        ws.on("error", (err) => this.#logger.error(err));
+        ws.on("close", () => {
+          onChannelClose(channelId);
+          this.#channels.delete(channelId);
+          this.#logger.debug({ channelId }, "Channel closed");
+        });
 
-      onChannelConnection(channelId, channel);
-
-      ws.on("message", (data, isBinary) => {
-        if (isBinary) {
-          this.#logger.warn("Message in binary format is not supported");
-          return;
-        }
-        // A malformed frame must not take down the process, which would drop every other client's tunnel
-        let message: any;
-        try {
-          message = JSON.parse(data.toString("utf-8"));
-        } catch (error) {
-          this.#logger.warn({ channelId, error }, "Message is not valid JSON");
-          return;
-        }
-        channel
-          .receiveAndSend(message)
-          .catch((error) =>
-            this.#logger.warn({ channelId, error }, "Error handling message")
-          );
-      });
-      ws.on("pong", () => this.#logger.debug("pong"));
-      ws.on("error", (err) => this.#logger.error(err));
-      ws.on("close", () => {
-        onChannelClose(channelId);
-        this.#channels.delete(channelId);
-        this.#logger.debug({ channelId }, "Channel closed");
-      });
-
-      this.#channels.set(channelId, channel);
-    });
+        this.#channels.set(channelId, channel);
+      }
+    );
 
     this.#serverSocket.on("error", (err) => this.#logger.error(err));
     this.#serverSocket.on("close", () => {});
@@ -179,10 +199,12 @@ export class JsonRpcServer {
   }
 
   handleUpgrade(
-    request: InstanceType<typeof IncomingMessage>,
+    request: AuthenticatedIncomingMessage,
     socket: Duplex,
-    head: Buffer
+    head: Buffer,
+    authenticatedClientId: ClientId
   ) {
+    request.authenticatedClientId = authenticatedClientId;
     this.#serverSocket.handleUpgrade(request, socket, head, (socket) => {
       this.#serverSocket.emit("connection", socket, request);
     });
@@ -257,7 +279,8 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   ) {
     super(
       options,
-      (channelId, channel) => this.onChannelConnection(channelId, channel),
+      (channelId, channel, authenticatedClientId) =>
+        this.onChannelConnection(channelId, channel, authenticatedClientId),
       (channelId) => this.onChannelClose(channelId)
     );
     this.#logger = createLogger({ name: "ClusterRpcServer" });
@@ -288,8 +311,21 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     this.#clientIds.set(channelId, clientId);
   }
 
-  onChannelConnection(channelId: ChannelId, channel: JSONRPCServerAndClient) {
+  onChannelConnection(
+    channelId: ChannelId,
+    channel: JSONRPCServerAndClient,
+    authenticatedClientId: ClientId
+  ) {
     channel.addMethod("setClientId", ({ clientId }) => {
+      if (clientId !== authenticatedClientId) {
+        this.#logger.warn(
+          { channelId, clientId, authenticatedClientId },
+          "Rejecting setClientId: claimed clientId does not match authenticated identity"
+        );
+        throw new Error(
+          "clientId does not match the connection's authenticated identity"
+        );
+      }
       this.#logger.debug({ channelId, clientId }, "Setting client ID");
       this.addChannel(channelId, clientId);
       return { ok: true };
@@ -349,8 +385,16 @@ export class JsonRpcApp {
 
     this.#httpServer.on("upgrade", (request, socket, head) => {
       (async () => {
-        await validateAuth(request.headers.authorization, publicKeyGetter);
-        this.#rpcServer.handleUpgrade(request, socket, head);
+        const authenticatedClientId = await validateAuth(
+          request.headers.authorization,
+          publicKeyGetter
+        );
+        this.#rpcServer.handleUpgrade(
+          request,
+          socket,
+          head,
+          authenticatedClientId
+        );
       })().catch((error: any) => {
         // Logged on every attempt from the braekhus proxy to connect, only log with debug level
         this.#logger.debug({ error }, "Error upgrading connection");
