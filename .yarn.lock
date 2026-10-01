@@ -662,7 +662,7 @@ __metadata:
     typeconv: "npm:^2.1.0"
     typescript: "npm:^5.8.3"
     vitest: "npm:^4.1.11"
-    ws: "npm:^8.18.1"
+    ws: "npm:^8.21.3"
     yargs: "npm:^17.7.2"
   bin:
     braekhus: ./dist/cli/index.js
@@ -7079,9 +7079,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:^8.18.1":
-  version: 8.18.2
-  resolution: "ws@npm:8.18.2"
+"ws@npm:^8.21.3":
+  version: 8.21.3
+  resolution: "ws@npm:8.21.3"
   peerDependencies:
     bufferutil: ^4.0.1
     utf-8-validate: ">=5.0.2"
@@ -7090,7 +7090,7 @@ __metadata:
       optional: true
     utf-8-validate:
       optional: true
-  checksum: 10c0/4b50f67931b8c6943c893f59c524f0e4905bbd183016cfb0f2b8653aa7f28dad4e456b9d99d285bbb67cca4fedd9ce90dfdfaa82b898a11414ebd66ee99141e4
+  checksum: 10c0/7b28dc2863ea0e2cece68d142a3eee90361021b73f750431e6d8076bb7dede5fdfdb75b3d29534b62f411261147b76b1bc80fb5cc63ab0aabd467280e85b22e0
   languageName: node
   linkType: hard
 
