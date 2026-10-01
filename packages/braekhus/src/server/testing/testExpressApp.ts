@@ -16,6 +16,13 @@ export const testHttpServer = (port: number) => {
     res.send("hello");
   });
 
+  // Writing without a Content-Length makes Express send Transfer-Encoding: chunked
+  router.get("/chunked/error", (req, res) => {
+    res.status(503).type("json");
+    res.write('{"error":');
+    res.end('"unavailable"}');
+  });
+
   const app = express();
   app.use(pinoHttp({ logger }));
   app.use("/", router);

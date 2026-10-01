@@ -70,7 +70,7 @@ export const httpProxyApp = (
       // If we `send` the data we get an error saying both "Transfer-Encoding" and "Content-Length" headers cannot be
       // present. "Content-Length" is added by express if you `send`.
       if (isChunked) {
-        // TODO: Do we have to forward status code separately? Can the response ever be chunked and non-200?
+        res.status(response.status);
         const stream = new JsonStreamStringify(response.data);
         // By default, stream.end() is called on the destination Writable stream when the source Readable stream emits 'end', so that the destination is no longer writable.
         // See See https://nodejs.org/api/stream.html#readablepipedestination-options
