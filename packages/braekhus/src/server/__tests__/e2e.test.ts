@@ -199,7 +199,7 @@ describe("Proxy server starts up first", () => {
       // VICTIM_CLIENT_ID's channel via setClientId.
       await expect(
         rpcClient.request("setClientId", { clientId: VICTIM_CLIENT_ID })
-      ).rejects.toBeDefined();
+      ).rejects.toThrow(/does not match/);
 
       // The victim's clientId must still be unroutable - if the hijack had
       // succeeded, this would return the attacker's "hijacked" marker
