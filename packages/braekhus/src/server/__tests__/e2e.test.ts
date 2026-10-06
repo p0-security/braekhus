@@ -144,6 +144,29 @@ describe("Proxy server starts up first", () => {
       );
     });
 
+    it("forwards a JSON body larger than express's 100 KB default", async () => {
+      const body = { data: "x".repeat(150 * 1024) };
+      await expect(
+        request(server.expressApp)
+          .post("/client/testClientId/echo/size")
+          .send(body)
+      ).resolves.toMatchObject(
+        expect.objectContaining({
+          status: 200,
+          body: { size: JSON.stringify(body).length },
+        })
+      );
+    });
+
+    it("rejects a JSON body over 1 MB", async () => {
+      const body = { data: "x".repeat(1024 * 1024) };
+      await expect(
+        request(server.expressApp)
+          .post("/client/testClientId/echo/size")
+          .send(body)
+      ).resolves.toMatchObject(expect.objectContaining({ status: 413 }));
+    });
+
     it("returns 404 if path does not exists in target", async () => {
       await expect(
         request(server.expressApp).get("/client/testClientId/unhappy/path")
