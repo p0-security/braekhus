@@ -16,6 +16,10 @@ export const testHttpServer = (port: number) => {
     res.send("hello");
   });
 
+  router.post("/echo/size", express.json({ limit: "10mb" }), (req, res) => {
+    res.json({ size: JSON.stringify(req.body).length });
+  });
+
   const app = express();
   app.use(pinoHttp({ logger }));
   app.use("/", router);

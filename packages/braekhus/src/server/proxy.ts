@@ -29,7 +29,9 @@ export const httpProxyApp = (
   app.use(pinoHttp({ logger, useLevel: "debug" }));
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
-  app.use(express.json());
+  // Matches the agentic gateway's own 1 MB limit; express's 100 KB default
+  // rejects large MCP server definitions on their way to the gateway.
+  app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(express.text());
   app.use(express.raw());
