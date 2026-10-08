@@ -24,7 +24,7 @@ export const httpProxyApp = (
     forwardedRequestOptions?: ForwardedRequestOptions;
     retryOptions?: RetryOptions;
   }
-) => {
+): express.Express => {
   const app = express();
   app.use(pinoHttp({ logger, useLevel: "debug" }));
 

@@ -1,6 +1,7 @@
 on:
   pull_request: {}
   workflow_call:
+  workflow_dispatch:
 
 name: Test
 
@@ -18,7 +19,7 @@ jobs:
         shell: bash
       - uses: actions/setup-node@v3
         with:
-          node-version: ^20.4.0
+          node-version: "24"
           cache: yarn
           cache-dependency-path: yarn.lock
       - name: Yarn install
