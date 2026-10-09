@@ -1,48 +1,38 @@
-import { Server, createServer } from "http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
 import { JsonRpcServer } from "../index.ts";
+import {
+  nextMessage,
+  openAuthenticatedSocket,
+} from "../testing/authenticated-socket.ts";
 
 const PORT = 18093;
 
-const nextMessage = (ws: WebSocket) =>
-  new Promise<any>((resolve) =>
-    ws.once("message", (data) => resolve(JSON.parse(data.toString())))
-  );
-
 describe("JsonRpcServer receiving a malformed message", () => {
-  let server: JsonRpcServer;
-  let httpServer: Server;
   let ws: WebSocket;
+  let close: (() => Promise<void>) | undefined;
   let warn: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
     // json-rpc-2.0 captures console.warn when the channel is constructed
     warn = vi.spyOn(console, "warn");
-    server = new JsonRpcServer(
+    const server = new JsonRpcServer(
       { noServer: true },
       (_channelId, channel) => channel.addMethod("echo", (params) => params),
       () => {}
     );
     // The connection handler requires an identity established during the upgrade
-    httpServer = createServer();
-    httpServer.on("upgrade", (request, socket, head) =>
-      server.handleUpgrade(request, socket, head as Buffer, "testClientId")
-    );
-    await new Promise((resolve) =>
-      httpServer.listen(PORT, resolve as () => void)
-    );
-    ws = new WebSocket(`ws://localhost:${PORT}`);
-    await new Promise((resolve) => ws.once("open", resolve));
+    ({ ws, close } = await openAuthenticatedSocket(
+      server,
+      PORT,
+      "testClientId"
+    ));
   });
 
   afterAll(async () => {
     warn?.mockRestore();
-    ws?.close();
-    server?.shutdown();
-    // Closing is asynchronous; the port stays bound until it completes
-    await new Promise((resolve) => httpServer.close(() => resolve(undefined)));
+    await close?.();
   });
 
   // Vitest fails the run on an uncaught exception or unhandled rejection, which is what these messages caused
