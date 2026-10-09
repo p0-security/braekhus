@@ -19,6 +19,7 @@ import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 import type {
   CallOptions,
+  ClientConnectedListener,
   ForwardedRequestOptions,
   ForwardedResponse,
   PublicKeyGetter,
@@ -49,6 +50,11 @@ export type InitContext = {
   clientIds: Map<ChannelId, ClientId>;
 };
 
+type RemoteClientOptions = {
+  initContext?: InitContext;
+  onClientConnected?: ClientConnectedListener;
+};
+
 export type App = {
   expressApp: Express;
   expressHttpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
@@ -59,6 +65,7 @@ export const runApp = (appParams: {
   appContext: AppContext;
   publicKeyGetter: PublicKeyGetter;
   initContext?: InitContext;
+  onClientConnected?: ClientConnectedListener;
   callOptions?: CallOptions;
   forwardedRequestOptions?: ForwardedRequestOptions;
   retryOptions?: RetryOptions;
@@ -67,6 +74,7 @@ export const runApp = (appParams: {
     appContext,
     publicKeyGetter,
     initContext,
+    onClientConnected,
     callOptions,
     forwardedRequestOptions,
     retryOptions,
@@ -95,11 +103,10 @@ export const runApp = (appParams: {
   const rpcHttpServer = rpcHttpApp.listen(rpcPort, () => {
     logger.info(`HTTP JSON RPC service listening on port ${rpcPort}`);
   });
-  const jsonRpcApp = new JsonRpcApp(
-    rpcHttpServer,
-    publicKeyGetter,
-    initContext
-  );
+  const jsonRpcApp = new JsonRpcApp(rpcHttpServer, publicKeyGetter, {
+    initContext,
+    onClientConnected,
+  });
   const expressApp = httpProxyApp(jsonRpcApp.getRpcServer(), {
     callOptions,
     retryOptions,
@@ -272,10 +279,11 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   // When a new clusterId is set we have to find if there is an existing mapping for that channelId using this reverse mapping
   #clientIds: Map<ChannelId, ClientId> = new Map();
   #logger: Logger;
+  #onClientConnected: ClientConnectedListener | undefined;
 
   constructor(
     options: ServerOptions<typeof WebSocket, typeof IncomingMessage>,
-    initContext?: InitContext
+    { initContext, onClientConnected }: RemoteClientOptions = {}
   ) {
     super(
       options,
@@ -284,6 +292,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
       (channelId) => this.onChannelClose(channelId)
     );
     this.#logger = createLogger({ name: "ClusterRpcServer" });
+    this.#onClientConnected = onClientConnected;
     if (initContext) {
       const { clientIds } = initContext;
       for (const [channelId, clientId] of clientIds) {
@@ -328,8 +337,20 @@ export class RemoteClientRpcServer extends JsonRpcServer {
       }
       this.#logger.debug({ channelId, clientId }, "Setting client ID");
       this.addChannel(channelId, clientId);
+      this.#notifyClientConnected(channelId, clientId);
       return { ok: true };
     });
+  }
+
+  #notifyClientConnected(channelId: ChannelId, clientId: ClientId) {
+    // Not awaited, and the async wrapper turns a sync throw into a rejection,
+    // so the listener can never delay or fail setClientId.
+    (async () => await this.#onClientConnected?.(clientId))().catch((error) =>
+      this.#logger.warn(
+        { channelId, clientId, error },
+        "Client-connected listener failed"
+      )
+    );
   }
 
   onChannelClose(channelId: ChannelId) {
@@ -374,13 +395,13 @@ export class JsonRpcApp {
   constructor(
     httpServer: Server<typeof IncomingMessage, typeof ServerResponse>,
     publicKeyGetter: PublicKeyGetter,
-    initContext?: InitContext
+    remoteClientOptions?: RemoteClientOptions
   ) {
     this.#logger = createLogger({ name: "JsonRpcApp" });
     this.#httpServer = httpServer;
     this.#rpcServer = new RemoteClientRpcServer(
       { noServer: true },
-      initContext
+      remoteClientOptions
     );
 
     this.#httpServer.on("upgrade", (request, socket, head) => {

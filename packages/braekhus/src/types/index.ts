@@ -37,3 +37,9 @@ export type ForwardedResponse = {
 };
 
 export type PublicKeyGetter = (clientId: string) => Promise<any | undefined>;
+
+/** Called once a tunnel client has authenticated and its channel is routable.
+ * Fire-and-forget: a throw or rejection is logged and never affects the connection. */
+export type ClientConnectedListener = (
+  clientId: string
+) => Promise<void> | void;
