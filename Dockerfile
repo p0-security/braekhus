@@ -54,6 +54,12 @@ USER 0
 WORKDIR /usr/src/app
 COPY --from=build /usr/src/app ./
 
+# The P0 install page has customers read the public key with
+# `kubectl exec ... -- cat /p0-files/jwk.public.json`. The hardened base has no
+# coreutils, so carry cat over from the build stage. It links only libc, which
+# the runtime already ships, and it is the one binary added to the image.
+COPY --from=build /bin/cat /bin/cat
+
 # Customer manifests pass a script name such as start:prod:client, so the
 # entrypoint stays Yarn. Running the bundle with node keeps that contract on an
 # image with no yarn binary. Yarn's own script runner also needs no /bin/sh.
