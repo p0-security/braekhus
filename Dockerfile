@@ -5,14 +5,25 @@
 # source: https://github.com/nodejs/docker-node/blob/main/24/bookworm/Dockerfile
 # best practices: https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md
 
-# Build on the full image. The published stage is slim so the runtime image
-# does not ship ImageMagick, compilers, or -dev packages.
-# Node 24.21.0 is the current 24 release (Node 18 is EOL). These digests are
-# the 2026-10-06 library/node rebuilds of that release.
+# Build on the full Node image. Publish on Chainguard's slim Node runtime,
+# which ships Node, glibc, and Node's libraries and nothing else: no apt, perl,
+# GnuTLS, acl, npm, or busybox. Both are Node 24.21.0 (Node 18 is EOL).
+#
+# Why this base: the published image is mirrored into p0-prod Artifact
+# Registry and Vanta reports every finding Artifact Analysis sees there,
+# fixable or not. Debian-based images always carry glibc entries Debian will
+# not fix; the Chainguard slim image scans at zero and Chainguard patches it
+# on their side. The full Chainguard node image includes npm, which brings an
+# unfixable npm dependency finding, so the slim variant is the one to use.
+#
+# The runtime has no shell, so every RUN step lives in the build stage and the
+# runtime stage is COPY only. Pulling cgr.dev needs Chainguard auth, which CI
+# gets keylessly from the p0-security-github OIDC identity (see docker.yaml).
+# Locally, `chainctl auth login` then `chainctl auth configure-docker`.
 ARG BUILD_BASE=node:24-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
-ARG RUN_BASE=node:24-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
+ARG RUN_BASE=cgr.dev/p0.dev/node:24.21.0-slim@sha256:01690029c9005125c62f82bb849352946ab2241f7497b8b0b87e12fb7e4998fe
 FROM ${BUILD_BASE} AS build
-RUN corepack enable yarn
+RUN corepack enable yarn && corepack prepare yarn@4.9.4 --activate
 
 WORKDIR /usr/src/app
 COPY .yarn.lock yarn.lock
@@ -32,38 +43,55 @@ RUN yarn build
 # stage is production-only -- no second install.
 RUN yarn workspaces focus @p0security/braekhus --production && yarn cache clean
 
-# Deploy stage: slim base. Carry over the built app from the build stage,
+# Yarn 4 is a single JS file. Stage the release Corepack prepared above next to
+# the app so the runtime can start it with node (there is no corepack there).
+RUN cp /root/.cache/node/corepack/v1/yarn/4.9.4/yarn.js /usr/src/app/yarn.js
+
+# node-jq downloads jq 1.7.1 at install time and no node-jq release ships a
+# newer one. The scanners flag that binary, so fetch the current jq release
+# instead, pinned by digest for each architecture, and drop the bundled copy.
+# node-jq reads JQ_PATH at startup, set on the runtime stage below.
+ARG TARGETARCH
+ARG JQ_VERSION=1.8.2
+ARG JQ_SHA256_AMD64=b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f
+ARG JQ_SHA256_ARM64=8b85c817833814ddca00a144c33705546355afccf0cf39b188f3cdb48b852309
+RUN curl -fsSLo /usr/local/bin/jq \
+    "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-${TARGETARCH}" \
+  && case "${TARGETARCH}" in \
+       amd64) echo "${JQ_SHA256_AMD64}  /usr/local/bin/jq" | sha256sum -c - ;; \
+       arm64) echo "${JQ_SHA256_ARM64}  /usr/local/bin/jq" | sha256sum -c - ;; \
+       *) echo "unsupported TARGETARCH ${TARGETARCH}" && exit 1 ;; \
+     esac \
+  && chmod 0755 /usr/local/bin/jq \
+  && rm -f /usr/src/app/node_modules/node-jq/bin/jq
+
+# Deploy stage: hardened runtime. Carry over the built app from the build stage,
 # production node_modules plus the compiled dist, instead of reinstalling.
 # node-jq's jq binary is in those node_modules, so it must survive this copy.
 FROM ${RUN_BASE} AS run
-# The Node image still carries perl 5.36.0-7+deb12u3. deb12u4 is in
-# bookworm-security and clears CVE-2026-57433, CVE-2026-42496, CVE-2026-13221,
-# CVE-2026-8376, and CVE-2026-12087. libgnutls30 and libacl1 have no bookworm
-# fix yet, so they stay.
-RUN apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
-  && rm -rf /var/lib/apt/lists/*
 
-# npm inside this Node release vendors undici 6.27.0. CVE-2026-19534 is fixed
-# in 6.28.1, and no newer Node 24 image publishes that. The app does not import
-# this copy. Yarn is the entrypoint.
-RUN cd /tmp \
-  && npm pack undici@6.29.0 --silent >/dev/null \
-  && rm -rf /usr/local/lib/node_modules/npm/node_modules/undici \
-  && tar -xzf undici-6.29.0.tgz -C /usr/local/lib/node_modules/npm/node_modules \
-  && mv /usr/local/lib/node_modules/npm/node_modules/package \
-    /usr/local/lib/node_modules/npm/node_modules/undici \
-  && rm undici-6.29.0.tgz
-
-# Bake the Yarn release into the image at build time. The single COPY below carries
-# the app but not Corepack's download cache, so a bare `corepack enable yarn` would
-# make ENTRYPOINT ["yarn"] fetch Yarn from repo.yarnpkg.com on every container
-# start (breaks in offline/egress-restricted deployments). `corepack prepare
-# --activate` caches the exact version the build stage uses, so runtime is offline-safe.
-RUN corepack enable yarn && corepack prepare yarn@4.9.4 --activate
-
+# The base defaults to uid 65532, but the published image has always
+# run as root and customer deployments depend on it: the Kubernetes manifest
+# mounts /p0-files from a PersistentVolumeClaim with no fsGroup, and the client
+# stores its private key there as root with mode 0400. A non-root process could
+# neither read an existing key nor create one, so moving off root is a
+# coordinated manifest change, not something :latest can do on its own.
+USER 0
 WORKDIR /usr/src/app
 COPY --from=build /usr/src/app ./
 
+# The P0 install page has customers read the public key with
+# `kubectl exec ... -- cat /p0-files/jwk.public.json`. The slim base has no
+# coreutils, so carry cat over from the build stage. It links only libc, which
+# the runtime already ships.
+COPY --from=build /bin/cat /bin/cat
+
+# Current jq for node-jq (see the build stage).
+COPY --from=build /usr/local/bin/jq /usr/local/bin/jq
+ENV JQ_PATH=/usr/local/bin/jq
+
+# Customer manifests pass a script name such as start:prod:client, so the
+# entrypoint stays Yarn. Running the bundle with node keeps that contract on an
+# image with no yarn binary. Yarn's own script runner also needs no /bin/sh.
 WORKDIR /usr/src/app/packages/braekhus
-ENTRYPOINT ["yarn"]
+ENTRYPOINT ["node", "/usr/src/app/yarn.js"]

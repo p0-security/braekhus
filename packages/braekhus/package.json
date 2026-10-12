@@ -42,12 +42,12 @@
     "jose": "^5.10.0",
     "json-rpc-2.0": "^1.7.0",
     "json-stream-stringify": "^3.1.6",
-    "lodash-es": "^4.17.21",
+    "lodash-es": "^4.18.0",
     "node-jq": "^6.0.1",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
     "pino-std-serializers": "npm:^7.0.0",
-    "ws": "^8.18.1",
+    "ws": "^8.21.0",
     "yargs": "^17.7.2"
   },
   "scripts": {
@@ -56,9 +56,9 @@
     "test": "NODE_ENV=test FORCE_COLOR=1 vitest run",
     "test:pretty": "NODE_ENV=test vitest run | pino-pretty",
     "start:dev:server": "NODE_ENV=development tsx watch --clear-screen=false cli/index.ts server",
-    "start:prod:server": "yarn braekhus server",
+    "start:prod:server": "node dist/cli/index.js server",
     "start:dev:client": "NODE_ENV=development tsx watch --clear-screen=false cli/index.ts client",
-    "start:prod:client": "yarn braekhus client",
+    "start:prod:client": "node dist/cli/index.js client",
     "format": "prettier --write '**/*.{html,js,ts,json,less,md}'",
     "format:quick": "pretty-quick --branch origin/main"
   },

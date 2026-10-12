@@ -640,7 +640,7 @@ __metadata:
     json-rpc-2.0: "npm:^1.7.0"
     json-stream-stringify: "npm:^3.1.6"
     lint-staged: "npm:^15.5.0"
-    lodash-es: "npm:^4.17.21"
+    lodash-es: "npm:^4.18.0"
     node-jq: "npm:^6.0.1"
     pino: "npm:^9.6.0"
     pino-http: "npm:^10.4.0"
@@ -654,7 +654,7 @@ __metadata:
     typeconv: "npm:^2.1.0"
     typescript: "npm:^5.8.3"
     vitest: "npm:^4.1.11"
-    ws: "npm:^8.18.1"
+    ws: "npm:^8.21.0"
     yargs: "npm:^17.7.2"
   bin:
     braekhus: ./dist/cli/index.js
@@ -4380,10 +4380,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash-es@npm:^4.17.21":
-  version: 4.17.21
-  resolution: "lodash-es@npm:4.17.21"
-  checksum: 10c0/fb407355f7e6cd523a9383e76e6b455321f0f153a6c9625e21a8827d10c54c2a2341bd2ae8d034358b60e07325e1330c14c224ff582d04612a46a4f0479ff2f2
+"lodash-es@npm:^4.18.0":
+  version: 4.18.1
+  resolution: "lodash-es@npm:4.18.1"
+  checksum: 10c0/35d4dcf87ef07f8d090f409447575800108057e360b445f590d0d25d09e3d1e33a163d2fc100d4d072b0f901d5e2fc533cd7c4bfd8eeb38a06abec693823c8b8
   languageName: node
   linkType: hard
 
@@ -7076,9 +7076,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:^8.18.1":
-  version: 8.18.2
-  resolution: "ws@npm:8.18.2"
+"ws@npm:^8.21.0":
+  version: 8.22.0
+  resolution: "ws@npm:8.22.0"
   peerDependencies:
     bufferutil: ^4.0.1
     utf-8-validate: ">=5.0.2"
@@ -7087,7 +7087,7 @@ __metadata:
       optional: true
     utf-8-validate:
       optional: true
-  checksum: 10c0/4b50f67931b8c6943c893f59c524f0e4905bbd183016cfb0f2b8653aa7f28dad4e456b9d99d285bbb67cca4fedd9ce90dfdfaa82b898a11414ebd66ee99141e4
+  checksum: 10c0/7304d14ef38898dd366a528a85e2da389c4eebf30f4ce8a007bd2dce6025f9b619cefe44fe2354f0bad0ec541b1c9a4da06a3f3e046ab56f01fd52d5784ecfb2
   languageName: node
   linkType: hard
 
