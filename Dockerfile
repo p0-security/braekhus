@@ -5,15 +5,23 @@
 # source: https://github.com/nodejs/docker-node/blob/main/24/bookworm/Dockerfile
 # best practices: https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md
 
-# Build on the full Node image. Publish on the Docker Hardened Images runtime,
-# which ships only Node and its libc, so there is no apt, perl, GnuTLS, or acl
-# for the scan to report. Both are Node 24.21.0 (Node 18 is EOL).
+# Build on the full Node image. Publish on Chainguard's slim Node runtime,
+# which ships Node, glibc, and Node's libraries and nothing else: no apt, perl,
+# GnuTLS, acl, npm, or busybox. Both are Node 24.21.0 (Node 18 is EOL).
+#
+# Why this base: the published image is mirrored into p0-prod Artifact
+# Registry and Vanta reports every finding Artifact Analysis sees there,
+# fixable or not. Debian-based images always carry glibc entries Debian will
+# not fix; the Chainguard slim image scans at zero and Chainguard patches it
+# on their side. The full Chainguard node image includes npm, which brings an
+# unfixable npm dependency finding, so the slim variant is the one to use.
 #
 # The runtime has no shell, so every RUN step lives in the build stage and the
-# runtime stage is COPY only. Pulling dhi.io needs `docker login dhi.io`, which
-# CI does with the p0security organization access token.
+# runtime stage is COPY only. Pulling cgr.dev needs Chainguard auth, which CI
+# gets keylessly from the p0-security-github OIDC identity (see docker.yaml).
+# Locally, `chainctl auth login` then `chainctl auth configure-docker`.
 ARG BUILD_BASE=node:24-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
-ARG RUN_BASE=dhi.io/node:24.21.0-debian13@sha256:f3575cf1e68ffe163703b691c465af833fd2d94cccc1e825d052c943018f2aa3
+ARG RUN_BASE=cgr.dev/p0.dev/node:24.21.0-slim@sha256:01690029c9005125c62f82bb849352946ab2241f7497b8b0b87e12fb7e4998fe
 FROM ${BUILD_BASE} AS build
 RUN corepack enable yarn && corepack prepare yarn@4.9.4 --activate
 
@@ -62,7 +70,7 @@ RUN curl -fsSLo /usr/local/bin/jq \
 # node-jq's jq binary is in those node_modules, so it must survive this copy.
 FROM ${RUN_BASE} AS run
 
-# The hardened base defaults to uid 1000, but the published image has always
+# The base defaults to uid 65532, but the published image has always
 # run as root and customer deployments depend on it: the Kubernetes manifest
 # mounts /p0-files from a PersistentVolumeClaim with no fsGroup, and the client
 # stores its private key there as root with mode 0400. A non-root process could
@@ -73,9 +81,9 @@ WORKDIR /usr/src/app
 COPY --from=build /usr/src/app ./
 
 # The P0 install page has customers read the public key with
-# `kubectl exec ... -- cat /p0-files/jwk.public.json`. The hardened base has no
+# `kubectl exec ... -- cat /p0-files/jwk.public.json`. The slim base has no
 # coreutils, so carry cat over from the build stage. It links only libc, which
-# the runtime already ships, and it is the one binary added to the image.
+# the runtime already ships.
 COPY --from=build /bin/cat /bin/cat
 
 # Current jq for node-jq (see the build stage).

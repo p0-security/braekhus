@@ -13,6 +13,11 @@ jobs:
   docker-build-and-push:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Needed to mint the GitHub OIDC token that Chainguard exchanges for
+      # registry credentials below.
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -31,15 +36,16 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      # The runtime base is a Docker Hardened Image. dhi.io rejects anonymous
-      # pulls, even for the free Community catalog. The username is the Docker
-      # Hub organization that owns the token.
-      - name: Log in to Docker Hardened Images
-        uses: docker/login-action@v3
+      # The runtime base comes from cgr.dev. Chainguard's p0-security-github
+      # identity trusts GitHub OIDC tokens for any p0-security repo on a branch
+      # ref and holds registry.pull, so no secret is involved. Pinned to the
+      # v0.5.1 commit of setup-chainctl.
+      - name: Authenticate to Chainguard
+        uses: chainguard-dev/setup-chainctl@2cddd35a2f120d9973e58094dc6878c93cf58c28
         with:
-          registry: dhi.io
-          username: p0security
-          password: ${{ secrets.DHI_TOKEN }}
+          identity: 9362afcb63b06a475d6304dec63f2abe1ca1991d/6e77c645e2e43c4b
+      - name: Log in to cgr.dev
+        run: chainctl auth configure-docker
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
