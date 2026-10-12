@@ -36,15 +36,21 @@ RUN yarn build
 RUN yarn workspaces focus @p0security/braekhus --production && yarn cache clean
 
 # Yarn 4 is a single JS file. Stage the release Corepack prepared above next to
-# the app so the runtime can start it with node (there is no corepack there),
-# and hand the tree to the runtime's non-root user.
-RUN cp /root/.cache/node/corepack/v1/yarn/4.9.4/yarn.js /usr/src/app/yarn.js \
-  && chown -R 1000:1000 /usr/src/app
+# the app so the runtime can start it with node (there is no corepack there).
+RUN cp /root/.cache/node/corepack/v1/yarn/4.9.4/yarn.js /usr/src/app/yarn.js
 
 # Deploy stage: hardened runtime. Carry over the built app from the build stage,
 # production node_modules plus the compiled dist, instead of reinstalling.
 # node-jq's jq binary is in those node_modules, so it must survive this copy.
 FROM ${RUN_BASE} AS run
+
+# The hardened base defaults to uid 1000, but the published image has always
+# run as root and customer deployments depend on it: the Kubernetes manifest
+# mounts /p0-files from a PersistentVolumeClaim with no fsGroup, and the client
+# stores its private key there as root with mode 0400. A non-root process could
+# neither read an existing key nor create one, so moving off root is a
+# coordinated manifest change, not something :latest can do on its own.
+USER 0
 WORKDIR /usr/src/app
 COPY --from=build /usr/src/app ./
 
