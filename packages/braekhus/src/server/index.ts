@@ -1,3 +1,4 @@
+import { ValueType, metrics } from "@opentelemetry/api";
 import type { Express } from "express";
 import express from "express";
 import { IncomingMessage, Server, ServerResponse } from "http";
@@ -29,6 +30,21 @@ import { httpProxyApp } from "./proxy.ts";
 import { httpError } from "./util.ts";
 
 const logger = createLogger({ name: "server" });
+const tunnelMeter = metrics.getMeter("braekhus");
+const tunnelsConnected = tunnelMeter.createUpDownCounter(
+  "braekhus.tunnels.connected",
+  {
+    valueType: ValueType.INT,
+    description: "Tunnels currently connected to the server",
+  }
+);
+const tunnelDisconnects = tunnelMeter.createCounter(
+  "braekhus.tunnels.disconnects",
+  {
+    valueType: ValueType.INT,
+    description: "Tunnels closed since the server started",
+  }
+);
 
 type ClientId = string;
 type ChannelId = string;
@@ -185,10 +201,13 @@ export class JsonRpcServer {
         ws.on("close", () => {
           onChannelClose(channelId);
           this.#channels.delete(channelId);
+          tunnelsConnected.add(-1);
+          tunnelDisconnects.add(1);
           this.#logger.debug({ channelId }, "Channel closed");
         });
 
         this.#channels.set(channelId, channel);
+        tunnelsConnected.add(1);
       }
     );
 
