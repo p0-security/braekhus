@@ -1,3 +1,5 @@
+import { ValueType, metrics } from "@opentelemetry/api";
+import type { RequestHandler } from "express";
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
 import { omit } from "lodash-es";
@@ -11,9 +13,34 @@ import type {
   ForwardedRequestOptions,
   IncomingRequest,
 } from "../types/index.ts";
+import { ChannelNotFoundError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
 
 const logger = createLogger({ name: "proxy" });
+const proxyRequests = metrics
+  .getMeter("braekhus")
+  .createCounter("braekhus.proxy.requests", {
+    valueType: ValueType.INT,
+    description: "Proxied requests, by response status code and outcome",
+  });
+
+export type ProxyOutcome =
+  | "ok"
+  | "timeout"
+  | "client_not_found"
+  | "error"
+  | "rejected";
+
+// Runs before the body parsers, so 400 and 413 responses are counted too. The route handler overwrites the
+// default. Recording on close counts each request once, including errors thrown after headers are sent.
+const recordOutcome: RequestHandler = (_req, res, next) => {
+  res.locals.outcome = "rejected" satisfies ProxyOutcome;
+  res.once("close", () => {
+    const outcome: ProxyOutcome = res.locals.outcome;
+    proxyRequests.add(1, { status_code: res.statusCode, outcome });
+  });
+  next();
+};
 
 const PATH_REGEXP = /\/client\/([^/]+)(.*)/;
 
@@ -27,6 +54,7 @@ export const httpProxyApp = (
 ): express.Express => {
   const app = express();
   app.use(pinoHttp({ logger, useLevel: "debug" }));
+  app.use(recordOutcome);
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
   // Matches the agentic gateway's own 1 MB limit; express's 100 KB default
@@ -68,6 +96,7 @@ export const httpProxyApp = (
         res.setHeader(key, value);
       });
       logger.debug({ isChunked }, "chunked");
+      res.locals.outcome = "ok" satisfies ProxyOutcome;
       // If the Kubernetes server sends "Transfer-Encoding: chunked" data then we must stream the response by piping it.
       // If we `send` the data we get an error saying both "Transfer-Encoding" and "Content-Length" headers cannot be
       // present. "Content-Length" is added by express if you `send`.
@@ -89,8 +118,17 @@ export const httpProxyApp = (
         (error.message.startsWith("timeout") &&
           error.message.endsWith("exceeded"))
       ) {
+        res.locals.outcome = "timeout" satisfies ProxyOutcome;
         res.status(504).json({ error, message: String(error) });
       } else {
+        // ChannelNotFoundError comes from initContext mappings, which production does not pass.
+        // The plain "Client not found" error is the production path.
+        res.locals.outcome = (
+          error instanceof ChannelNotFoundError ||
+          error.message.startsWith("Client not found")
+            ? "client_not_found"
+            : "error"
+        ) satisfies ProxyOutcome;
         res.status(502).json({ error, message: String(error) });
       }
     }
