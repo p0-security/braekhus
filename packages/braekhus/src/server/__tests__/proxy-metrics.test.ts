@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Backoff } from "../../client/backoff.ts";
 import { JsonRpcClient } from "../../client/index.ts";
-import { ClientNotFoundError } from "../error.ts";
+import { NotFoundError } from "../error.ts";
 import type { RemoteClientRpcServer } from "../index.ts";
 import { ensureKey } from "../key-cache.ts";
 
@@ -158,7 +158,7 @@ describe("proxy request metrics", () => {
 
   it("records client_not_found on a 502 for an unknown client", async () => {
     const app = proxyWith(async () => {
-      throw new ClientNotFoundError("noSuchClientId");
+      throw new NotFoundError("noSuchClientId", "client");
     });
 
     const [change] = await recordedBy(() =>
