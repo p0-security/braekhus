@@ -13,7 +13,7 @@ import type {
   ForwardedRequestOptions,
   IncomingRequest,
 } from "../types/index.ts";
-import { ChannelNotFoundError } from "./error.ts";
+import { NotFoundError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
 
 const logger = createLogger({ name: "proxy" });
@@ -110,27 +110,30 @@ export const httpProxyApp = (
         res.status(response.status).send(response.data);
       }
     } catch (error: any) {
-      logger.error({ error, spammy: true }, "Error handling request");
-      if (
-        // Timeout waiting for response on the the websocket channel
-        error.message === "Request timeout" ||
-        // Timeout in axios client from proxy to target service (e.g. Kubernetes API server) - "timeout of 1000ms exceeded"
-        (error.message.startsWith("timeout") &&
-          error.message.endsWith("exceeded"))
-      ) {
-        res.locals.outcome = "timeout" satisfies ProxyOutcome;
-        res.status(504).json({ error, message: String(error) });
+      let outcome: ProxyOutcome = "error";
+      let status = 502;
+      if (error instanceof NotFoundError) {
+        outcome = "client_not_found";
+        logger.debug(
+          { id: error.id, mode: error.mode },
+          "Client not connected"
+        );
       } else {
-        // ChannelNotFoundError comes from initContext mappings, which production does not pass.
-        // The plain "Client not found" error is the production path.
-        res.locals.outcome = (
-          error instanceof ChannelNotFoundError ||
-          error.message.startsWith("Client not found")
-            ? "client_not_found"
-            : "error"
-        ) satisfies ProxyOutcome;
-        res.status(502).json({ error, message: String(error) });
+        // Only log for uncommon errors
+        logger.error({ error, spammy: true }, "Error handling request");
+        if (
+          // Timeout waiting for response on the the websocket channel
+          error.message === "Request timeout" ||
+          // Timeout in axios client from proxy to target service (e.g. Kubernetes API server) - "timeout of 1000ms exceeded"
+          (error.message.startsWith("timeout") &&
+            error.message.endsWith("exceeded"))
+        ) {
+          outcome = "timeout";
+          status = 504;
+        }
       }
+      res.locals.outcome = outcome;
+      res.status(status).json({ error, message: String(error) });
     }
   });
 

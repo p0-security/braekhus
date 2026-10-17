@@ -89,7 +89,7 @@ describe("Proxy server starts up first", () => {
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
-          text: '{"error":{"type":"channel_not_found"},"message":"Error: Channel not found: testChannelId"}',
+          text: '{"error":{"id":"testClientId","mode":"client","type":"not_found"},"message":"Error: client not found: testClientId"}',
         })
       );
     });
@@ -100,7 +100,7 @@ describe("Proxy server starts up first", () => {
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
-          text: '{"error":{},"message":"Error: Client not found: noSuchClientId"}',
+          text: '{"error":{"id":"noSuchClientId","mode":"client","type":"not_found"},"message":"Error: client not found: noSuchClientId"}',
         })
       );
     });

@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Backoff } from "../../client/backoff.ts";
 import { JsonRpcClient } from "../../client/index.ts";
-import { ChannelNotFoundError } from "../error.ts";
+import { NotFoundError } from "../error.ts";
 import type { RemoteClientRpcServer } from "../index.ts";
 import { ensureKey } from "../key-cache.ts";
 
@@ -158,27 +158,11 @@ describe("proxy request metrics", () => {
 
   it("records client_not_found on a 502 for an unknown client", async () => {
     const app = proxyWith(async () => {
-      throw new Error("Client not found: noSuchClientId");
+      throw new NotFoundError("noSuchClientId", "client");
     });
 
     const [change] = await recordedBy(() =>
       request(app).get("/client/noSuchClientId")
-    );
-
-    expect(change).toEqual({
-      status_code: 502,
-      outcome: "client_not_found",
-      count: 1,
-    });
-  });
-
-  it("records client_not_found on a 502 for a ChannelNotFoundError", async () => {
-    const app = proxyWith(async () => {
-      throw new ChannelNotFoundError("Channel not found: testChannelId");
-    });
-
-    const [change] = await recordedBy(() =>
-      request(app).get("/client/testClientId")
     );
 
     expect(change).toEqual({

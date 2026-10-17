@@ -25,7 +25,7 @@ import type {
   PublicKeyGetter,
 } from "../types/index.ts";
 import { validateAuth } from "./auth.ts";
-import { ChannelNotFoundError } from "./error.ts";
+import { NotFoundError } from "./error.ts";
 import { httpProxyApp } from "./proxy.ts";
 import { httpError } from "./util.ts";
 
@@ -242,7 +242,7 @@ export class JsonRpcServer {
     );
     const channel = this.#channels.get(channelId);
     if (!channel) {
-      throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
+      throw new NotFoundError(channelId, "channel");
     }
     try {
       const response = await channel
@@ -268,6 +268,10 @@ export class JsonRpcServer {
   shutdown() {
     clearInterval(this.#intervalTimer);
     this.#serverSocket.close();
+  }
+
+  hasChannel(channelId: ChannelId) {
+    return this.#channels.has(channelId);
   }
 
   async broadcast(method: string, request: any) {
@@ -362,9 +366,9 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     callOptions?: CallOptions
   ) {
     const channelId = this.#channelIds.get(clientId);
-    if (!channelId) {
-      throw new Error(`Client not found: ${clientId}`);
-    }
+    // A client may be mapped to a channel that is not (or no longer) connected
+    if (!channelId || !this.hasChannel(channelId))
+      throw new NotFoundError(clientId, "client");
     this.#logger.debug({ channelId, method, request }, "Calling");
     return this.call(channelId, method, request, callOptions);
   }
