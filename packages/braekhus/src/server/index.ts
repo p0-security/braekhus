@@ -242,7 +242,7 @@ export class JsonRpcServer {
     );
     const channel = this.#channels.get(channelId);
     if (!channel) {
-      throw new ClientNotFoundError(channelId);
+      throw new ClientNotFoundError("unknown");
     }
     try {
       const response = await channel
@@ -268,6 +268,10 @@ export class JsonRpcServer {
   shutdown() {
     clearInterval(this.#intervalTimer);
     this.#serverSocket.close();
+  }
+
+  hasChannel(channelId: ChannelId) {
+    return this.#channels.has(channelId);
   }
 
   async broadcast(method: string, request: any) {
@@ -362,7 +366,9 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     callOptions?: CallOptions
   ) {
     const channelId = this.#channelIds.get(clientId);
-    if (!channelId) throw new ClientNotFoundError(clientId);
+    // A client may be mapped to a channel that is not (or no longer) connected
+    if (!channelId || !this.hasChannel(channelId))
+      throw new ClientNotFoundError(clientId);
     this.#logger.debug({ channelId, method, request }, "Calling");
     return this.call(channelId, method, request, callOptions);
   }

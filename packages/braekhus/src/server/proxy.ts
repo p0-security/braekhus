@@ -13,7 +13,7 @@ import type {
   ForwardedRequestOptions,
   IncomingRequest,
 } from "../types/index.ts";
-import {  ClientNotFoundError } from "./error.ts";
+import { ClientNotFoundError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
 
 const logger = createLogger({ name: "proxy" });
@@ -112,9 +112,7 @@ export const httpProxyApp = (
     } catch (error: any) {
       let outcome: ProxyOutcome = "error";
       let status = 502;
-      if (
-        error instanceof ClientNotFoundError 
-      ) {
+      if (error instanceof ClientNotFoundError) {
         outcome = "client_not_found";
         logger.debug({ clientId: error.clientId }, "Client not connected");
       } else {

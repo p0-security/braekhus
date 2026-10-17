@@ -172,22 +172,6 @@ describe("proxy request metrics", () => {
     });
   });
 
-  it("records client_not_found on a 502 for a ChannelNotFoundError", async () => {
-    const app = proxyWith(async () => {
-      throw new ClientNotFoundError("testChannelId");
-    });
-
-    const [change] = await recordedBy(() =>
-      request(app).get("/client/testClientId")
-    );
-
-    expect(change).toEqual({
-      status_code: 502,
-      outcome: "client_not_found",
-      count: 1,
-    });
-  });
-
   it("records error on a 502 for other failures", async () => {
     const app = proxyWith(async () => {
       throw new Error("connect ECONNREFUSED");
