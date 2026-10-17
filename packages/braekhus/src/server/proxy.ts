@@ -13,7 +13,7 @@ import type {
   ForwardedRequestOptions,
   IncomingRequest,
 } from "../types/index.ts";
-import { ChannelNotFoundError, ClientNotFoundError } from "./error.ts";
+import {  ClientNotFoundError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
 
 const logger = createLogger({ name: "proxy" });
@@ -111,14 +111,12 @@ export const httpProxyApp = (
       }
     } catch (error: any) {
       let outcome: ProxyOutcome = "error";
-      let status: number = 502;
-      // ChannelNotFoundError comes from initContext mappings, which production does not pass.
-      // The plain "Client not found" error is the production path.
+      let status = 502;
       if (
-        error instanceof ClientNotFoundError ||
-        error instanceof ChannelNotFoundError
+        error instanceof ClientNotFoundError 
       ) {
         outcome = "client_not_found";
+        logger.debug({ clientId: error.clientId }, "Client not connected");
       } else {
         // Only log for uncommon errors
         logger.error({ error, spammy: true }, "Error handling request");

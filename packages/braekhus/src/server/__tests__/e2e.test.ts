@@ -100,7 +100,7 @@ describe("Proxy server starts up first", () => {
       ).resolves.toMatchObject(
         expect.objectContaining({
           status: 502,
-          text: '{"error":{},"message":"Error: Client not found: noSuchClientId"}',
+          text: '{"error":{"type":"client_not_found"},"message":"Error: Client not found: noSuchClientId"}',
         })
       );
     });

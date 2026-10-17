@@ -25,7 +25,7 @@ import type {
   PublicKeyGetter,
 } from "../types/index.ts";
 import { validateAuth } from "./auth.ts";
-import { ChannelNotFoundError, ClientNotFoundError } from "./error.ts";
+import { ClientNotFoundError } from "./error.ts";
 import { httpProxyApp } from "./proxy.ts";
 import { httpError } from "./util.ts";
 
@@ -242,7 +242,7 @@ export class JsonRpcServer {
     );
     const channel = this.#channels.get(channelId);
     if (!channel) {
-      throw new ChannelNotFoundError(`Channel not found: ${channelId}`);
+      throw new ClientNotFoundError(channelId);
     }
     try {
       const response = await channel
