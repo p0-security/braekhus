@@ -205,6 +205,9 @@ export class JsonRpcServer {
         ws.on("pong", () => this.#logger.debug("pong"));
         ws.on("error", (err) => this.#logger.error(err));
         ws.on("close", () => {
+          // Replies to calls in flight can no longer arrive; fail them now so callers
+          // (and retries) do not wait out the call timeout
+          channel.rejectAllPendingRequests("Tunnel closed");
           onChannelClose(channelId);
           this.#channels.delete(channelId);
           tunnelsConnected.add(-1);
