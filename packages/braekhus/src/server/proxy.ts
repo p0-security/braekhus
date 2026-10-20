@@ -6,6 +6,7 @@ import { omit } from "lodash-es";
 import { pinoHttp } from "pino-http";
 
 import type { RetryOptions } from "../client/backoff.ts";
+import { MAX_FORWARDED_REQUEST_BODY_BYTES } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 import type {
   CallOptions,
@@ -57,9 +58,7 @@ export const httpProxyApp = (
   app.use(recordOutcome);
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
-  // Matches the agentic gateway's own 1 MB limit; express's 100 KB default
-  // rejects large MCP server definitions on their way to the gateway.
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: MAX_FORWARDED_REQUEST_BODY_BYTES }));
   app.use(express.urlencoded({ extended: true }));
   app.use(express.text());
   app.use(express.raw());

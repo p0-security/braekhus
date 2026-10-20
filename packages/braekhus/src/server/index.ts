@@ -16,7 +16,10 @@ import { WebSocket, WebSocketServer } from "ws";
 
 import type { RetryOptions } from "../client/backoff.ts";
 import { retryWithBackoff } from "../client/backoff.ts";
-import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants.ts";
+import {
+  DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS,
+  SERVER_RECEIVE_LIMITS,
+} from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 import type {
   CallOptions,
@@ -146,7 +149,10 @@ export class JsonRpcServer {
     onChannelClose: (channelId: ChannelId) => void
   ) {
     this.#logger = createLogger({ name: "JsonRpcServer" });
-    this.#serverSocket = new WebSocketServer(options);
+    this.#serverSocket = new WebSocketServer({
+      ...SERVER_RECEIVE_LIMITS,
+      ...options,
+    });
     this.#serverSocket.on(
       "connection",
       (ws, request: AuthenticatedIncomingMessage) => {
@@ -199,6 +205,9 @@ export class JsonRpcServer {
         ws.on("pong", () => this.#logger.debug("pong"));
         ws.on("error", (err) => this.#logger.error(err));
         ws.on("close", () => {
+          // Replies to calls in flight can no longer arrive; fail them now so callers
+          // (and retries) do not wait out the call timeout
+          channel.rejectAllPendingRequests("Tunnel closed");
           onChannelClose(channelId);
           this.#channels.delete(channelId);
           tunnelsConnected.add(-1);

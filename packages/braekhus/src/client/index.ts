@@ -8,7 +8,10 @@ import { omit } from "lodash-es";
 import type { Logger } from "pino";
 import WebSocket from "ws";
 
-import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants.ts";
+import {
+  CLIENT_RECEIVE_LIMITS,
+  DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
+} from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
 import { JQ_HEADER } from "../types/index.ts";
@@ -104,6 +107,7 @@ export class JsonRpcClient {
     try {
       token = await jwt(this.#jwkPath, this.#clientId);
       clientSocket = new WebSocket(this.#webSocketUrl, {
+        ...CLIENT_RECEIVE_LIMITS,
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (error) {
