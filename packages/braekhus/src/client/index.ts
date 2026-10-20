@@ -10,6 +10,10 @@ import WebSocket from "ws";
 
 import { DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
+import {
+  redactForwardedRequest,
+  redactForwardedResponse,
+} from "../log/redact.ts";
 import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
 import { JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
@@ -60,16 +64,6 @@ export class JsonRpcClient {
     this.#jsonRpcClient.promise.catch((error: any) =>
       this.#logger.error({ error }, "Error creating JSON RPC client")
     );
-
-    axios.interceptors.request.use((request) => {
-      this.#logger.debug({ request }, "Axios request");
-      return request;
-    });
-
-    axios.interceptors.response.use((response) => {
-      this.#logger.debug({ response }, "Axios response");
-      return response;
-    });
   }
 
   #scheduleReconnect() {
@@ -181,23 +175,19 @@ export class JsonRpcClient {
 
     client.addMethod("call", async (request: ForwardedRequest) => {
       this.#logger.debug(
-        {
-          request: {
-            ...request,
-            headers: omit(request.headers, "authorization"),
-          },
-        },
+        { request: redactForwardedRequest(request) },
         "forwarded request"
       );
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
+      // 3. The jq header is an instruction to this client, not to the target.
       const response = await axios({
         baseURL: this.#targetUrl,
         url: request.path,
         method: request.method,
         headers: {
-          ...omit(request.headers, "content-length"),
+          ...omit(request.headers, "content-length", JQ_HEADER),
           host: this.#targetHostName,
         },
         params: request.params,
@@ -208,18 +198,18 @@ export class JsonRpcClient {
           DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
       });
       const jpSelectHeader = request.headers[JQ_HEADER];
-      this.#logger.debug({ response }, "forwarded response before filters");
       const data = await jqTransform(response.data, jpSelectHeader);
-      this.#logger.debug(
-        { response: data },
-        "forwarded response data after filters"
-      );
-      return {
+      const forwardedResponse: ForwardedResponse = {
         headers: response.headers,
         status: response.status,
         statusText: response.statusText,
         data,
-      } as ForwardedResponse;
+      };
+      this.#logger.debug(
+        { response: redactForwardedResponse(forwardedResponse) },
+        "forwarded response"
+      );
+      return forwardedResponse;
     });
 
     return client;

@@ -2,11 +2,11 @@ import { ValueType, metrics } from "@opentelemetry/api";
 import type { RequestHandler } from "express";
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
-import { omit } from "lodash-es";
-import { pinoHttp } from "pino-http";
 
 import type { RetryOptions } from "../client/backoff.ts";
-import { createLogger } from "../log/index.ts";
+import { toEndToEndHeaders } from "../common/headers.ts";
+import { createLogger, newHttpLogger } from "../log/index.ts";
+import { redactForwardedRequest } from "../log/redact.ts";
 import type {
   CallOptions,
   ForwardedRequest,
@@ -53,7 +53,7 @@ export const httpProxyApp = (
   }
 ): express.Express => {
   const app = express();
-  app.use(pinoHttp({ logger, useLevel: "debug" }));
+  app.use(newHttpLogger({ logger, useLevel: "debug" }));
   app.use(recordOutcome);
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
@@ -75,13 +75,16 @@ export const httpProxyApp = (
     const path = (matches as string[])[2];
     const request: ForwardedRequest = {
       path,
-      headers: omit(req.headers, "proxy-authorization"),
+      headers: toEndToEndHeaders(req.headers),
       method: req.method,
       params: req.query,
       data: req.body,
       options: options?.forwardedRequestOptions,
     };
-    logger.debug({ request }, "forwarded request");
+    logger.debug(
+      { request: redactForwardedRequest(request) },
+      "forwarded request"
+    );
     try {
       const response = await rpcServer.callClientWithRetry(
         "call",
@@ -92,9 +95,13 @@ export const httpProxyApp = (
       );
       const isChunked =
         response.headers["transfer-encoding"]?.trim() === "chunked";
-      Object.entries<string>(response.headers).forEach(([key, value]) => {
-        res.setHeader(key, value);
-      });
+      // Transfer-Encoding is hop-by-hop, so it is read above but not copied: Node
+      // chunks the piped response itself
+      Object.entries<string>(toEndToEndHeaders(response.headers)).forEach(
+        ([key, value]) => {
+          res.setHeader(key, value);
+        }
+      );
       logger.debug({ isChunked }, "chunked");
       res.locals.outcome = "ok" satisfies ProxyOutcome;
       // If the Kubernetes server sends "Transfer-Encoding: chunked" data then we must stream the response by piping it.

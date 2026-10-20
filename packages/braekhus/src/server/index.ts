@@ -10,14 +10,13 @@ import {
 import { randomUUID } from "node:crypto";
 import { Duplex } from "node:stream";
 import type { Logger } from "pino";
-import { pinoHttp } from "pino-http";
 import type { ServerOptions } from "ws";
 import { WebSocket, WebSocketServer } from "ws";
 
 import type { RetryOptions } from "../client/backoff.ts";
 import { retryWithBackoff } from "../client/backoff.ts";
 import { DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS } from "../common/constants.ts";
-import { createLogger } from "../log/index.ts";
+import { createLogger, newHttpLogger } from "../log/index.ts";
 import type {
   CallOptions,
   ForwardedRequestOptions,
@@ -92,7 +91,7 @@ export const runApp = (appParams: {
 
   // Log all requests
   rpcHttpApp.use(
-    pinoHttp({
+    newHttpLogger({
       logger,
       customLogLevel: (_req, res) => {
         // Note that _req is undefined :[
@@ -236,10 +235,9 @@ export class JsonRpcServer {
     options?: CallOptions
   ): Promise<ForwardedResponse> {
     const requestId = randomUUID();
-    this.#logger.debug(
-      { requestId, channelId, method, request },
-      "RPC request"
-    );
+    // Payloads are left out: they hold forwarded credentials and bodies, and
+    // the proxy already logs a redacted copy of each forwarded request
+    this.#logger.debug({ requestId, channelId, method }, "RPC request");
     const channel = this.#channels.get(channelId);
     if (!channel) {
       throw new NotFoundError(channelId, "channel");
@@ -251,10 +249,7 @@ export class JsonRpcServer {
           options?.timeoutMillis ?? DEFAULT_WEBSOCKET_CALL_TIMEOUT_MILLIS
         )
         .request(method, request);
-      this.#logger.debug(
-        { requestId, channelId, method, response },
-        "RPC response"
-      );
+      this.#logger.debug({ requestId, channelId, method }, "RPC response");
       return response;
     } catch (error) {
       this.#logger.error(
@@ -369,7 +364,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     // A client may be mapped to a channel that is not (or no longer) connected
     if (!channelId || !this.hasChannel(channelId))
       throw new NotFoundError(clientId, "client");
-    this.#logger.debug({ channelId, method, request }, "Calling");
+    this.#logger.debug({ channelId, method }, "Calling");
     return this.call(channelId, method, request, callOptions);
   }
 
