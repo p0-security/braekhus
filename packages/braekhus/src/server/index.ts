@@ -30,6 +30,7 @@ import type {
 import { validateAuth } from "./auth.ts";
 import { NotFoundError } from "./error.ts";
 import { httpProxyApp } from "./proxy.ts";
+import { createDrain } from "./shutdown.ts";
 import { httpError } from "./util.ts";
 
 const logger = createLogger({ name: "server" });
@@ -72,6 +73,7 @@ export type App = {
   expressApp: Express;
   expressHttpServer: Server<typeof IncomingMessage, typeof ServerResponse>;
   jsonRpcApp: JsonRpcApp;
+  drain: () => Promise<void>;
 };
 
 export const runApp = (appParams: {
@@ -127,7 +129,8 @@ export const runApp = (appParams: {
   const expressHttpServer = expressApp.listen(proxyPort, () => {
     logger.info(`HTTP Proxy app listening on port ${proxyPort}`);
   });
-  return { expressApp, expressHttpServer, jsonRpcApp };
+  const drain = createDrain(expressHttpServer, jsonRpcApp);
+  return { expressApp, expressHttpServer, jsonRpcApp, drain };
 };
 
 /**
@@ -281,6 +284,18 @@ export class JsonRpcServer {
 
   hasChannel(channelId: ChannelId) {
     return this.#channels.has(channelId);
+  }
+
+  closeChannels(code: number, reason: string) {
+    return Promise.all(
+      [...this.#serverSocket.clients].map(
+        (ws) =>
+          new Promise<void>((resolve) => {
+            ws.once("close", () => resolve());
+            ws.close(code, reason);
+          })
+      )
+    );
   }
 
   async broadcast(method: string, request: any) {

@@ -35,11 +35,16 @@ void yargs(hideBin(process.argv))
             "Timeout that is forwarded to the proxy client to use when requesting downstream resource",
         }),
     (args) => {
-      runApp({
+      const app = runApp({
         appContext: args,
         publicKeyGetter: ensureKey,
         forwardedRequestOptions: { timeoutMillis: args.proxyTimeout },
         retryOptions: { startMillis: 250, maxMillis: 2000, maxRetries: 5 },
+      });
+      // A second SIGTERM finds no listener, so Node exits at once
+      process.once("SIGTERM", () => {
+        logger.info("SIGTERM received, draining");
+        void app.drain().then(() => process.exit(0));
       });
     }
   )
