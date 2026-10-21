@@ -4,14 +4,15 @@ import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
 
 import type { RetryOptions } from "../client/backoff.ts";
+import { MAX_FORWARDED_REQUEST_BODY_BYTES } from "../common/constants.ts";
 import { toEndToEndHeaders } from "../common/headers.ts";
 import { createLogger, newHttpLogger } from "../log/index.ts";
 import { redactForwardedRequest } from "../log/redact.ts";
 import type {
-  CallOptions,
-  ForwardedRequest,
-  ForwardedRequestOptions,
-  IncomingRequest,
+    CallOptions,
+    ForwardedRequest,
+    ForwardedRequestOptions,
+    IncomingRequest,
 } from "../types/index.ts";
 import { NotFoundError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
@@ -57,9 +58,7 @@ export const httpProxyApp = (
   app.use(recordOutcome);
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
-  // Matches the agentic gateway's own 1 MB limit; express's 100 KB default
-  // rejects large MCP server definitions on their way to the gateway.
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: MAX_FORWARDED_REQUEST_BODY_BYTES }));
   app.use(express.urlencoded({ extended: true }));
   app.use(express.text());
   app.use(express.raw());
