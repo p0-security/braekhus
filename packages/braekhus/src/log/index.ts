@@ -1,16 +1,14 @@
 import type { Logger, LoggerOptions } from "pino";
 import { pino } from "pino";
-import type { Options as HttpLoggerOptions } from "pino-http";
-import { pinoHttp } from "pino-http";
 // A default import, because this CommonJS module's namespace import lacks most of its exports
 import pinoSerializers from "pino-std-serializers";
 
-import { redactSerializedRequest, redactSerializedResponse } from "./redact.ts";
+import { redactOptions } from "./redact.ts";
 
 const {
   err: serializeError,
-  wrapRequestSerializer,
-  wrapResponseSerializer,
+  req: serializeRequest,
+  res: serializeResponse,
 } = pinoSerializers;
 
 const originalStdoutWrite = process.stdout.write;
@@ -42,10 +40,12 @@ export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
     ...options,
     name: `braekhus.${options.name}`,
     level: process.env.LOG_LEVEL || "info",
+    // Child loggers inherit this, including the ones pino-http creates
+    redact: redactOptions,
     serializers: {
       error: serializeError,
-      req: wrapRequestSerializer(redactSerializedRequest),
-      res: wrapResponseSerializer(redactSerializedResponse),
+      req: serializeRequest,
+      res: serializeResponse,
     },
     formatters: {
       level: (label) => {
@@ -55,14 +55,3 @@ export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
   });
   return logger;
 };
-
-/** pino-http middleware that redacts credentials from the requests and responses it logs */
-export const newHttpLogger = (options: HttpLoggerOptions) =>
-  // pino-http ignores the logger's own serializers, and wraps these in the standard ones itself
-  pinoHttp({
-    ...options,
-    serializers: {
-      req: redactSerializedRequest,
-      res: redactSerializedResponse,
-    },
-  });

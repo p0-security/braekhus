@@ -13,10 +13,6 @@ import {
   DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
 } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
-import {
-  redactForwardedRequest,
-  redactForwardedResponse,
-} from "../log/redact.ts";
 import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
 import { JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
@@ -178,10 +174,7 @@ export class JsonRpcClient {
     this.#webSocket = clientSocket;
 
     client.addMethod("call", async (request: ForwardedRequest) => {
-      this.#logger.debug(
-        { request: redactForwardedRequest(request) },
-        "forwarded request"
-      );
+      this.#logger.debug({ request }, "forwarded request");
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
@@ -209,10 +202,7 @@ export class JsonRpcClient {
         statusText: response.statusText,
         data,
       };
-      this.#logger.debug(
-        { response: redactForwardedResponse(forwardedResponse) },
-        "forwarded response"
-      );
+      this.#logger.debug({ response: forwardedResponse }, "forwarded response");
       return forwardedResponse;
     });
 

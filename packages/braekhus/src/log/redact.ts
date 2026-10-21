@@ -1,10 +1,5 @@
-import { isEqual, isObject, mapValues } from "lodash-es";
-import type {
-  SerializedRequest,
-  SerializedResponse,
-} from "pino-std-serializers";
-
-import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
+import { isEqual } from "lodash-es";
+import type { LoggerOptions } from "pino";
 
 export const REDACTED = "<REDACTED>";
 
@@ -33,23 +28,12 @@ const LOGGABLE_HEADERS = new Set([
 // A denylist, because query parameters carry routine debugging context (e.g.
 // Kubernetes label selectors), and credentials in them use recognizable names
 const SENSITIVE_PARAM_PATTERN =
-  /auth|credential|key|passw|secret|session|signature|token/i;
+  /auth|credential|key|passw|password|secret|session|signature|token/i;
 
-/** Replaces the value of every header not known to be safe to log */
-export const redactHeaders = <T extends object>(headers: T) =>
-  mapValues(headers, (value, name) =>
-    LOGGABLE_HEADERS.has(name.toLowerCase()) ? value : REDACTED
-  );
+const redactParam = (value: unknown, name: string) =>
+  SENSITIVE_PARAM_PATTERN.test(name) ? REDACTED : value;
 
-/** Replaces the value of every query parameter whose name suggests a credential */
-export const redactQuery = <T>(query: T) =>
-  isObject(query)
-    ? mapValues(query, (value, name) =>
-        SENSITIVE_PARAM_PATTERN.test(name) ? REDACTED : value
-      )
-    : query;
-
-/** Applies {@link redactQuery} to the query string of a URL or path */
+/** Redacts the values of sensitive query parameters in a URL or path */
 export const redactUrl = (url: string) => {
   const iQuery = url.indexOf("?");
   if (iQuery < 0) return url;
@@ -63,34 +47,40 @@ export const redactUrl = (url: string) => {
   return `${url.slice(0, iQuery)}?${params.join("&")}`;
 };
 
-// Express's body parsers default a missing body to `{}`; keeping it tells a
-// reader that the request had no body
-const redactBody = (data: unknown) =>
-  data === undefined || isEqual(data, {}) ? data : REDACTED;
+// Censors keyed by the field each redacted path passes through
+const CENSORS: Record<string, (value: unknown, name: string) => unknown> = {
+  // Express's body parsers default a missing body to `{}`; keeping it tells a
+  // reader that the request had no body
+  data: (value) => (isEqual(value, {}) ? value : REDACTED),
+  headers: (value, name) =>
+    LOGGABLE_HEADERS.has(name.toLowerCase()) ? value : REDACTED,
+  params: redactParam,
+  query: redactParam,
+  url: (value) => (typeof value === "string" ? redactUrl(value) : REDACTED),
+};
 
-export const redactForwardedRequest = (request: ForwardedRequest) => ({
-  ...request,
-  data: redactBody(request.data),
-  headers: redactHeaders(request.headers),
-  params: redactQuery(request.params),
-});
-
-export const redactForwardedResponse = (response: ForwardedResponse) => ({
-  ...response,
-  data: redactBody(response.data),
-  headers: redactHeaders(response.headers),
-});
-
-/** Redacts a request already serialized by pino-std-serializers */
-export const redactSerializedRequest = (req: SerializedRequest) => ({
-  ...req,
-  headers: redactHeaders(req.headers),
-  query: redactQuery(req.query),
-  url: redactUrl(req.url),
-});
-
-/** Redacts a response already serialized by pino-std-serializers */
-export const redactSerializedResponse = (res: SerializedResponse) => ({
-  ...res,
-  headers: redactHeaders(res.headers),
-});
+/**
+ * pino `redact` options that keep credentials and bodies out of logged HTTP
+ * requests and responses.
+ *
+ * Covers pino-http's `req` and `res`, and the forwarded `request` and
+ * `response` objects braekhus logs.
+ */
+export const redactOptions = {
+  paths: [
+    "req.headers.*",
+    "req.query.*",
+    "req.url",
+    "res.headers.*",
+    "request.data",
+    "request.headers.*",
+    "request.params.*",
+    "response.data",
+    "response.headers.*",
+  ],
+  censor: (value: unknown, path: string[]) => {
+    const [, field = "", name = ""] = path;
+    // Fails closed if a path is added without a censor
+    return CENSORS[field]?.(value, name) ?? REDACTED;
+  },
+} satisfies LoggerOptions["redact"];

@@ -1,55 +1,98 @@
+import { pino } from "pino";
 import { describe, expect, it } from "vitest";
 
-import {
-  REDACTED,
-  redactForwardedRequest,
-  redactForwardedResponse,
-  redactHeaders,
-  redactQuery,
-  redactUrl,
-} from "../redact.ts";
+import { REDACTED, redactOptions, redactUrl } from "../redact.ts";
 
-describe("redactHeaders", () => {
+/** Logs `object` through a pino logger with {@link redactOptions}, and returns what it wrote */
+const logged = (object: object) => {
+  const lines: string[] = [];
+  pino({ redact: redactOptions }, { write: (line) => lines.push(line) }).info(
+    object
+  );
+  return JSON.parse(lines[0] ?? "{}");
+};
+
+describe("redactOptions", () => {
   it("keeps only allowlisted header values, matching names case-insensitively", () => {
     expect(
-      redactHeaders({
-        Authorization: "Bearer abc",
-        "Content-Type": "application/json",
-        cookie: "sid=abc",
-        "set-cookie": ["a=1", "b=2"],
-        "x-api-key": "abc",
+      logged({
+        req: {
+          headers: {
+            authorization: "Bearer abc",
+            "Content-Type": "application/json",
+            cookie: "sid=abc",
+            "x-api-key": "abc",
+          },
+        },
+        res: { headers: { "content-length": "2", "set-cookie": ["a=1"] } },
       })
-    ).toEqual({
-      Authorization: REDACTED,
-      "Content-Type": "application/json",
-      cookie: REDACTED,
-      "set-cookie": REDACTED,
-      "x-api-key": REDACTED,
+    ).toMatchObject({
+      req: {
+        headers: {
+          authorization: REDACTED,
+          "Content-Type": "application/json",
+          cookie: REDACTED,
+          "x-api-key": REDACTED,
+        },
+      },
+      res: { headers: { "content-length": "2", "set-cookie": REDACTED } },
     });
   });
-});
 
-describe("redactQuery", () => {
-  it("redacts parameters whose names suggest a credential", () => {
+  it("redacts query parameters whose names suggest a credential", () => {
     expect(
-      redactQuery({
-        access_token: "abc",
-        apiKey: "abc",
-        labelSelector: "app=x",
-        limit: "10",
-        "X-Amz-Signature": "abc",
+      logged({
+        req: {
+          query: { access_token: "abc", labelSelector: "app=x" },
+          url: "/client/c/api?access_token=abc&labelSelector=app%3Dx",
+        },
+        request: { params: { "X-Amz-Signature": "abc", limit: "10" } },
       })
-    ).toEqual({
-      access_token: REDACTED,
-      apiKey: REDACTED,
-      labelSelector: "app=x",
-      limit: "10",
-      "X-Amz-Signature": REDACTED,
+    ).toMatchObject({
+      req: {
+        query: { access_token: REDACTED, labelSelector: "app=x" },
+        url: `/client/c/api?access_token=${REDACTED}&labelSelector=app%3Dx`,
+      },
+      request: { params: { "X-Amz-Signature": REDACTED, limit: "10" } },
     });
   });
 
-  it("passes through a missing query", () => {
-    expect(redactQuery(undefined)).toBeUndefined();
+  it("redacts forwarded request and response bodies and headers", () => {
+    expect(
+      logged({
+        request: {
+          data: { password: "abc" },
+          headers: { authorization: "Bearer abc", host: "example.com" },
+          method: "POST",
+          path: "/api",
+        },
+        response: {
+          data: "secret",
+          headers: { "x-upstream-token": "abc" },
+          status: 200,
+        },
+      })
+    ).toEqual(
+      expect.objectContaining({
+        request: {
+          data: REDACTED,
+          headers: { authorization: REDACTED, host: "example.com" },
+          method: "POST",
+          path: "/api",
+        },
+        response: {
+          data: REDACTED,
+          headers: { "x-upstream-token": REDACTED },
+          status: 200,
+        },
+      })
+    );
+  });
+
+  it("keeps an empty body", () => {
+    expect(logged({ request: { data: {} } })).toMatchObject({
+      request: { data: {} },
+    });
   });
 });
 
@@ -64,55 +107,5 @@ describe("redactUrl", () => {
     ["/api?a=b&secret=x=y", `/api?a=b&secret=${REDACTED}`],
   ])("redacts %s", (url, expected) => {
     expect(redactUrl(url)).toBe(expected);
-  });
-});
-
-describe("redactForwardedRequest", () => {
-  it("redacts headers, params, and body", () => {
-    expect(
-      redactForwardedRequest({
-        data: { password: "abc" },
-        headers: { authorization: "Bearer abc", host: "example.com" },
-        method: "POST",
-        params: { token: "abc", watch: "true" },
-        path: "/api",
-      })
-    ).toEqual({
-      data: REDACTED,
-      headers: { authorization: REDACTED, host: "example.com" },
-      method: "POST",
-      params: { token: REDACTED, watch: "true" },
-      path: "/api",
-    });
-  });
-
-  it.each([[undefined], [{}]])("keeps an empty body %s", (data) => {
-    expect(
-      redactForwardedRequest({
-        data,
-        headers: {},
-        method: "GET",
-        params: {},
-        path: "/",
-      }).data
-    ).toEqual(data);
-  });
-});
-
-describe("redactForwardedResponse", () => {
-  it("redacts headers and body", () => {
-    expect(
-      redactForwardedResponse({
-        data: "secret",
-        headers: { "content-length": "6", "set-cookie": ["sid=abc"] },
-        status: 200,
-        statusText: "OK",
-      })
-    ).toEqual({
-      data: REDACTED,
-      headers: { "content-length": "6", "set-cookie": REDACTED },
-      status: 200,
-      statusText: "OK",
-    });
   });
 });

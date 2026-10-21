@@ -2,17 +2,17 @@ import { ValueType, metrics } from "@opentelemetry/api";
 import type { RequestHandler } from "express";
 import express from "express";
 import { JsonStreamStringify } from "json-stream-stringify";
+import { pinoHttp } from "pino-http";
 
 import type { RetryOptions } from "../client/backoff.ts";
 import { MAX_FORWARDED_REQUEST_BODY_BYTES } from "../common/constants.ts";
 import { toEndToEndHeaders } from "../common/headers.ts";
-import { createLogger, newHttpLogger } from "../log/index.ts";
-import { redactForwardedRequest } from "../log/redact.ts";
+import { createLogger } from "../log/index.ts";
 import type {
-    CallOptions,
-    ForwardedRequest,
-    ForwardedRequestOptions,
-    IncomingRequest,
+  CallOptions,
+  ForwardedRequest,
+  ForwardedRequestOptions,
+  IncomingRequest,
 } from "../types/index.ts";
 import { NotFoundError } from "./error.ts";
 import { RemoteClientRpcServer } from "./index.ts";
@@ -54,7 +54,7 @@ export const httpProxyApp = (
   }
 ): express.Express => {
   const app = express();
-  app.use(newHttpLogger({ logger, useLevel: "debug" }));
+  app.use(pinoHttp({ logger, useLevel: "debug" }));
   app.use(recordOutcome);
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
@@ -80,10 +80,7 @@ export const httpProxyApp = (
       data: req.body,
       options: options?.forwardedRequestOptions,
     };
-    logger.debug(
-      { request: redactForwardedRequest(request) },
-      "forwarded request"
-    );
+    logger.debug({ request }, "forwarded request");
     try {
       const response = await rpcServer.callClientWithRetry(
         "call",
