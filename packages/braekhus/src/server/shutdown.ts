@@ -29,8 +29,7 @@ const timesOut = async (promise: Promise<unknown>, millis: number) => {
 // server.close() waits for every socket, and a keep-alive socket stays open
 // after its response. While closing, each response asks the client to close
 // with Connection: close. A response can still go out as keep-alive, when its
-// headers were sent before the drain or the proxied target sent its own
-// Connection header, so its socket is closed once it is idle.
+// headers were sent before the drain, so its socket is closed once it is idle.
 const closeAfterResponses = (
   server: Server<typeof IncomingMessage, typeof ServerResponse>
 ) => {

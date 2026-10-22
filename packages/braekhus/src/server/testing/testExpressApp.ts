@@ -20,6 +20,15 @@ export const testHttpServer = (port: number) => {
     res.json({ size: JSON.stringify(req.body).length });
   });
 
+  // Echoes the request's header names, and answers with a credential and a
+  // hop-by-hop header the proxy must not pass back
+  router.post("/echo/headers", express.json(), (req, res) => {
+    res.setHeader("connection", "keep-alive, x-target-hop");
+    res.setHeader("x-target-hop", "1");
+    res.setHeader("set-cookie", req.body.setCookie);
+    res.json({ headers: Object.keys(req.headers), secret: req.body.secret });
+  });
+
   const app = express();
   app.use(pinoHttp({ logger }));
   app.use("/", router);

@@ -1,6 +1,9 @@
 import type { Logger, LoggerOptions } from "pino";
 import { pino } from "pino";
-import * as pinoSerializers from "pino-std-serializers";
+// A default import, because this CommonJS module's namespace import lacks most of its exports
+import pinoSerializers from "pino-std-serializers";
+
+import { redactOptions } from "./redact.ts";
 
 const {
   err: serializeError,
@@ -37,6 +40,8 @@ export const createLogger = <T extends LoggerOptions>(options: T): Logger => {
     ...options,
     name: `braekhus.${options.name}`,
     level: process.env.LOG_LEVEL || "info",
+    // Child loggers inherit this, including the ones pino-http creates
+    redact: redactOptions,
     serializers: {
       error: serializeError,
       req: serializeRequest,

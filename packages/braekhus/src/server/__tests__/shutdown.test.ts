@@ -26,8 +26,8 @@ import {
   SERVICE_RESTART_CLOSE_CODE,
 } from "../shutdown.ts";
 
-const RPC_PORT = 18095;
-const PROXY_PORT = 18096;
+const RPC_PORT = 18110;
+const PROXY_PORT = 18111;
 const CLIENT_ID = "testClientId";
 // Longer than the 5.75 s of retry sleeps one proxied request can spend
 const SLOW_REQUEST_MILLIS = 6000;
@@ -143,7 +143,8 @@ describe("drain", () => {
 
   it.each([
     ["no Connection header", {}, "close"],
-    ["Connection: keep-alive", { connection: "keep-alive" }, "keep-alive"],
+    // Connection is hop-by-hop, so the proxy drops the target's and the drain's wins
+    ["Connection: keep-alive", { connection: "keep-alive" }, "close"],
   ])(
     "finishes an in-flight keep-alive request whose target sent %s, then closes tunnels",
     async (_name, headers, connection) => {
