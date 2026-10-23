@@ -7,7 +7,7 @@
 
 # Build on the full Node image. Publish on Chainguard's slim Node runtime,
 # which ships Node, glibc, and Node's libraries and nothing else: no apt, perl,
-# GnuTLS, acl, npm, or busybox. Both are Node 24.21.0 (Node 18 is EOL).
+# GnuTLS, acl, npm, or busybox. The published runtime is Node 24.22.1.
 #
 # Why this base: the published image is mirrored into p0-prod Artifact
 # Registry and Vanta reports every finding Artifact Analysis sees there,
@@ -21,7 +21,7 @@
 # gets keylessly from the p0-security-github OIDC identity (see docker.yaml).
 # Locally, `chainctl auth login` then `chainctl auth configure-docker`.
 ARG BUILD_BASE=node:24-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
-ARG RUN_BASE=cgr.dev/p0.dev/node:24.21.0-slim@sha256:01690029c9005125c62f82bb849352946ab2241f7497b8b0b87e12fb7e4998fe
+ARG RUN_BASE=cgr.dev/p0.dev/node:24.22.1-slim@sha256:73a0566416c83f797f3f1125bcfa05eb21bf75f7fa12547276948a0fb707837b
 FROM ${BUILD_BASE} AS build
 RUN corepack enable yarn && corepack prepare yarn@4.9.4 --activate
 
