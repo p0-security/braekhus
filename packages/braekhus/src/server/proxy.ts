@@ -22,7 +22,8 @@ const proxyRequests = metrics
   .getMeter("braekhus")
   .createCounter("braekhus.proxy.requests", {
     valueType: ValueType.INT,
-    description: "Proxied requests, by response status code and outcome",
+    description:
+      "Proxied requests, by response status code, outcome, and target client",
   });
 
 export type ProxyOutcome =
@@ -32,18 +33,27 @@ export type ProxyOutcome =
   | "error"
   | "rejected";
 
+const PATH_REGEXP = /\/client\/([^/]+)(.*)/;
+
 // Runs before the body parsers, so 400 and 413 responses are counted too. The route handler overwrites the
 // default. Recording on close counts each request once, including errors thrown after headers are sent.
-const recordOutcome: RequestHandler = (_req, res, next) => {
-  res.locals.outcome = "rejected" satisfies ProxyOutcome;
-  res.once("close", () => {
-    const outcome: ProxyOutcome = res.locals.outcome;
-    proxyRequests.add(1, { status_code: res.statusCode, outcome });
-  });
-  next();
-};
-
-const PATH_REGEXP = /\/client\/([^/]+)(.*)/;
+const recordOutcome =
+  (rpcServer: RemoteClientRpcServer): RequestHandler =>
+  (req, res, next) => {
+    res.locals.outcome = "rejected" satisfies ProxyOutcome;
+    res.once("close", () => {
+      const outcome: ProxyOutcome = res.locals.outcome;
+      const pathClientId = PATH_REGEXP.exec(req.path)?.[1];
+      proxyRequests.add(1, {
+        status_code: res.statusCode,
+        outcome,
+        client_id: pathClientId
+          ? rpcServer.metricClientId(pathClientId)
+          : "unknown",
+      });
+    });
+    next();
+  };
 
 export const httpProxyApp = (
   rpcServer: RemoteClientRpcServer,
@@ -55,7 +65,7 @@ export const httpProxyApp = (
 ): express.Express => {
   const app = express();
   app.use(pinoHttp({ logger, useLevel: "debug" }));
-  app.use(recordOutcome);
+  app.use(recordOutcome(rpcServer));
 
   // In order to populate the `request.body` attribute in express we must define body-parser middlewares.
   app.use(express.json({ limit: MAX_FORWARDED_REQUEST_BODY_BYTES }));

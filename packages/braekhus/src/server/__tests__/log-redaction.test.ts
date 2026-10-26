@@ -98,6 +98,9 @@ describe("with debug logging on", () => {
     // Guards against a vacuous pass if the logs stop reaching stdout
     expect(logs).toContain('"msg":"forwarded request"');
     expect(logs).toContain('"msg":"forwarded response"');
+    expect(logs).toMatch(
+      /"level":"info"[^\n]*"status":200,"elapsedMs":\d+,"msg":"first forwarded response"/
+    );
     for (const secret of Object.values(SECRETS))
       expect(logs).not.toContain(secret);
   });

@@ -4,9 +4,23 @@ Braekhus is a NAT hole-punching HTTP reverse proxy. It allows you to send encryp
 
 The target server must be able to send requests out from the private network, e.g. via a NAT Gateway.
 
+## Metrics
+
+The server records these through the OpenTelemetry API. They export only when the process that runs the server registers a meter provider. The `server` command does not.
+
+- `braekhus.proxy.requests` (counter): requests to the proxy port.
+  - `status_code`: the status sent to the caller.
+  - `outcome`: `ok` (the client answered, with any status), `timeout` (504), `client_not_found` (no tunnel for the client, 502), `error` (any other failure, 502), or `rejected` (refused before it reached a tunnel, for example a 413 or an unknown path).
+  - `client_id`: the client ID in the request path. The proxy port does not authenticate callers, so this reads `unknown` until a tunnel has authenticated as that ID since the server started. After a server restart, requests for a client that has not reconnected read `unknown`.
+- `braekhus.tunnels.connected` (up-down counter): open tunnels, by `client_id`. A client's value returns to 0 when its tunnel closes.
+- `braekhus.tunnels.disconnects` (counter): tunnels closed since the server started, by `client_id`. Includes the closes a server drain causes.
+
+On the tunnel metrics, `client_id` is the subject of the client's verified JWT.
+
 ## Development
 
 ### Lockfile Management
+
 To enable git submoduling, the lockfile for this repo is committed as `.yarn.lock`. If you're working on this repo in isolation, run `yarn :show-lockfile`. To revert this change, `yarn :hide-lockfile`.
 
 If you experience problems with your `node_modules` after changing the lockfile mode, run `yarn :clean-node-modules`.

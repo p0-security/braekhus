@@ -106,6 +106,10 @@ export class JsonRpcClient {
       throw error;
     }
 
+    // Each create() opens one connection, so this logs once per connection.
+    // The canary gate reads that line as proof that P0 reached the target.
+    let firstResponseLogged = false;
+
     const client = new JSONRPCServerAndClient(
       new JSONRPCServer(),
       new JSONRPCClient((request) => {
@@ -175,6 +179,7 @@ export class JsonRpcClient {
 
     client.addMethod("call", async (request: ForwardedRequest) => {
       this.#logger.debug({ request }, "forwarded request");
+      const start = Date.now();
       // The headers are modified:
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
@@ -202,6 +207,13 @@ export class JsonRpcClient {
         statusText: response.statusText,
         data,
       };
+      if (!firstResponseLogged) {
+        firstResponseLogged = true;
+        this.#logger.info(
+          { status: response.status, elapsedMs: Date.now() - start },
+          "first forwarded response"
+        );
+      }
       this.#logger.debug({ response: forwardedResponse }, "forwarded response");
       return forwardedResponse;
     });

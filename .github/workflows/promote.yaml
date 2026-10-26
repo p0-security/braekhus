@@ -1,0 +1,166 @@
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "The sha- tag to soak in the canary and then move latest to"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "The sha- tag to move latest to, for example sha-15d77eb"
+        required: true
+        type: string
+      skip_canary:
+        description: "Move latest without the canary soak. Use for a rollback to a build that ran in production before."
+        required: false
+        type: boolean
+        default: false
+
+name: Promote latest
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      image: ${{ steps.check.outputs.image }}
+      latest_digest: ${{ steps.check.outputs.latest_digest }}
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # The gate and the promote step use the index digest, not the tag. A
+      # re-run of Deploy for the same commit pushes a new index under the same
+      # sha- tag, and latest must move to the index that soaked.
+      - name: Check the tag
+        id: check
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -u
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::latest moves only from main, not from $GITHUB_REF"
+            exit 1
+          fi
+          if ! [[ $IMAGE_TAG =~ ^sha-[0-9a-f]{7,40}$ ]]; then
+            echo "::error::image_tag must be a sha- tag such as sha-15d77eb, not \"$IMAGE_TAG\""
+            exit 1
+          fi
+          index=$(docker buildx imagetools inspect "p0security/braekhus:$IMAGE_TAG" --format '{{json .Manifest}}')
+          digest=$(jq -er '
+            select(.mediaType == "application/vnd.oci.image.index.v1+json"
+              or .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json")
+            | select((["linux/amd64", "linux/arm64"] - [.manifests[].platform | "\(.os)/\(.architecture)"]) == [])
+            | .digest | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$index") || {
+            echo "::error::p0security/braekhus:$IMAGE_TAG is not a multi-platform index with linux/amd64 and linux/arm64"
+            exit 1
+          }
+          latest_digest=$(docker buildx imagetools inspect p0security/braekhus:latest --format '{{json .Manifest}}' |
+            jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))') || {
+            echo "::error::could not read the digest of p0security/braekhus:latest"
+            exit 1
+          }
+          echo "p0security/braekhus:$IMAGE_TAG is p0security/braekhus@$digest"
+          echo "image=p0security/braekhus@$digest" >>"$GITHUB_OUTPUT"
+          echo "latest_digest=$latest_digest" >>"$GITHUB_OUTPUT"
+
+  canary:
+    name: Soak the image in the canary
+    needs: check
+    if: ${{ !inputs.skip_canary }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency: braekhus-canary
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # The role trusts only the OIDC subject of a run on main with no
+      # environment. Setting environment on this job changes the subject, and
+      # the role refuses it.
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::175079170519:role/braekhus-canary-gate
+          aws-region: us-west-2
+      - name: Get credentials for the canary cluster
+        run: aws eks update-kubeconfig --name stage-e2e-cluster-v2 --region us-west-2
+      - name: Run the canary gate
+        env:
+          IMAGE: ${{ needs.check.outputs.image }}
+        run: |
+          if ! .github/scripts/canary-gate.sh "$IMAGE"; then
+            echo "::error::$IMAGE failed the canary. latest was not moved."
+            exit 1
+          fi
+
+  promote:
+    name: Move latest
+    needs: [check, canary]
+    if: ${{ !cancelled() && needs.check.result == 'success' && (needs.canary.result == 'success' || (inputs.skip_canary && needs.canary.result == 'skipped')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency: braekhus-latest
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      # A manual promote or rollback can move latest during the soak. The
+      # soaked image must not overwrite it.
+      - name: Move latest
+        env:
+          IMAGE: ${{ needs.check.outputs.image }}
+          LATEST_BEFORE: ${{ needs.check.outputs.latest_digest }}
+          SKIP_CANARY: ${{ inputs.skip_canary }}
+        run: |
+          set -u
+          latest_digest() {
+            docker buildx imagetools inspect p0security/braekhus:latest --format '{{json .Manifest}}' |
+              jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))'
+          }
+          [[ $IMAGE =~ ^p0security/braekhus@sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::expected an image digest ref from the check job, got \"$IMAGE\""
+            exit 1
+          }
+          if [ "$SKIP_CANARY" != true ]; then
+            latest_now=$(latest_digest) || {
+              echo "::error::could not read the digest of p0security/braekhus:latest"
+              exit 1
+            }
+            if [ "$latest_now" != "$LATEST_BEFORE" ]; then
+              echo "::error::latest moved from $LATEST_BEFORE to $latest_now while $IMAGE was in the canary. Not overwriting it."
+              exit 1
+            fi
+          fi
+          docker buildx imagetools create -t p0security/braekhus:latest "$IMAGE"
+          latest_after=$(latest_digest) || {
+            echo "::error::could not read the digest of p0security/braekhus:latest after moving it"
+            exit 1
+          }
+          if [ "p0security/braekhus@$latest_after" != "$IMAGE" ]; then
+            echo "::error::latest is $latest_after, not the index $IMAGE"
+            exit 1
+          fi
+          {
+            echo "latest is now \`$IMAGE\`."
+            if [ "$SKIP_CANARY" = true ]; then
+              echo "The canary soak was skipped."
+            else
+              echo "The canary soaked only the platform its cluster runs. CI only started the other platform in the index."
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"

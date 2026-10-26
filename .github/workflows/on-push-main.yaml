@@ -21,3 +21,14 @@ jobs:
   docker:
     uses: ./.github/workflows/docker.yaml
     secrets: inherit
+
+  promote:
+    needs: [test, docker]
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/promote.yaml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      image_tag: ${{ needs.docker.outputs.image_tag }}
+    secrets: inherit

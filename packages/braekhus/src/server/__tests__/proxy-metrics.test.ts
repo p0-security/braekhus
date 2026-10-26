@@ -25,6 +25,7 @@ metrics.setGlobalMeterProvider(provider);
 
 const PROXY_REQUESTS = "braekhus.proxy.requests";
 const TUNNELS_CONNECTED = "braekhus.tunnels.connected";
+const TUNNEL_DISCONNECTS = "braekhus.tunnels.disconnects";
 
 let httpProxyApp: typeof import("../proxy.ts").httpProxyApp;
 let runApp: typeof import("../index.ts").runApp;
@@ -87,9 +88,13 @@ const recordedBy = async (run: () => Promise<unknown>) => {
   );
 };
 
+const KNOWN_CLIENT_IDS = new Set(["testClientId", "droppedClientId"]);
+
 const proxyWith = (callClientWithRetry: (...args: any[]) => Promise<unknown>) =>
   httpProxyApp({
     callClientWithRetry,
+    metricClientId: (clientId: string) =>
+      KNOWN_CLIENT_IDS.has(clientId) ? clientId : "unknown",
   } as unknown as RemoteClientRpcServer);
 
 beforeAll(async () => {
@@ -113,7 +118,12 @@ describe("proxy request metrics", () => {
       request(app).get("/client/testClientId/happy/path")
     );
 
-    expect(change).toEqual({ status_code: 200, outcome: "ok", count: 1 });
+    expect(change).toEqual({
+      status_code: 200,
+      outcome: "ok",
+      client_id: "testClientId",
+      count: 1,
+    });
   });
 
   it("records ok with the upstream status on a 404 from the target", async () => {
@@ -127,7 +137,12 @@ describe("proxy request metrics", () => {
       request(app).get("/client/testClientId/unhappy/path")
     );
 
-    expect(change).toEqual({ status_code: 404, outcome: "ok", count: 1 });
+    expect(change).toEqual({
+      status_code: 404,
+      outcome: "ok",
+      client_id: "testClientId",
+      count: 1,
+    });
   });
 
   it("records ok for a chunked response", async () => {
@@ -141,7 +156,12 @@ describe("proxy request metrics", () => {
       request(app).get("/client/testClientId")
     );
 
-    expect(change).toEqual({ status_code: 200, outcome: "ok", count: 1 });
+    expect(change).toEqual({
+      status_code: 200,
+      outcome: "ok",
+      client_id: "testClientId",
+      count: 1,
+    });
   });
 
   it("records timeout on a 504", async () => {
@@ -153,10 +173,32 @@ describe("proxy request metrics", () => {
       request(app).get("/client/testClientId")
     );
 
-    expect(change).toEqual({ status_code: 504, outcome: "timeout", count: 1 });
+    expect(change).toEqual({
+      status_code: 504,
+      outcome: "timeout",
+      client_id: "testClientId",
+      count: 1,
+    });
   });
 
-  it("records client_not_found on a 502 for an unknown client", async () => {
+  it("records client_not_found with the client ID for a client that has connected before", async () => {
+    const app = proxyWith(async () => {
+      throw new NotFoundError("droppedClientId", "client");
+    });
+
+    const [change] = await recordedBy(() =>
+      request(app).get("/client/droppedClientId")
+    );
+
+    expect(change).toEqual({
+      status_code: 502,
+      outcome: "client_not_found",
+      client_id: "droppedClientId",
+      count: 1,
+    });
+  });
+
+  it("records client_not_found as unknown for a client that never connected", async () => {
     const app = proxyWith(async () => {
       throw new NotFoundError("noSuchClientId", "client");
     });
@@ -168,6 +210,22 @@ describe("proxy request metrics", () => {
     expect(change).toEqual({
       status_code: 502,
       outcome: "client_not_found",
+      client_id: "unknown",
+      count: 1,
+    });
+  });
+
+  it("records unknown for a path with no client ID", async () => {
+    const app = proxyWith(async () => {
+      throw new Error("the handler should not run for an unmatched path");
+    });
+
+    const [change] = await recordedBy(() => request(app).get("/elsewhere"));
+
+    expect(change).toEqual({
+      status_code: 404,
+      outcome: "rejected",
+      client_id: "unknown",
       count: 1,
     });
   });
@@ -181,7 +239,12 @@ describe("proxy request metrics", () => {
       request(app).get("/client/testClientId")
     );
 
-    expect(change).toEqual({ status_code: 502, outcome: "error", count: 1 });
+    expect(change).toEqual({
+      status_code: 502,
+      outcome: "error",
+      client_id: "testClientId",
+      count: 1,
+    });
   });
 
   it("records rejected on a 413 from an oversized body", async () => {
@@ -196,27 +259,31 @@ describe("proxy request metrics", () => {
         .send(JSON.stringify({ blob: "x".repeat(1_500_000) }))
     );
 
-    expect(change).toEqual({ status_code: 413, outcome: "rejected", count: 1 });
+    expect(change).toEqual({
+      status_code: 413,
+      outcome: "rejected",
+      client_id: "testClientId",
+      count: 1,
+    });
   });
 });
 
-describe("tunnel connected gauge", () => {
-  const connectedTunnels = async () => {
-    const series = await readSeries(TUNNELS_CONNECTED);
-    return [...series.values()].reduce((sum, { value }) => sum + value, 0);
+describe("tunnel metrics", () => {
+  const forClient = async (name: string, clientId: string) => {
+    const series = await readSeries(name);
+    return [...series.values()]
+      .filter(({ attributes }) => attributes.client_id === clientId)
+      .reduce((sum, { value }) => sum + value, 0);
   };
 
-  it("reads 1 after a client connects and 0 after it disconnects", async () => {
+  it("labels the gauge, disconnects, and proxy requests with the client ID", async () => {
+    const clientId = "gaugeClientId";
     const app = runApp({
       appContext: { rpcPort: 18280, proxyPort: 18281 },
       publicKeyGetter: ensureKey,
     });
     const jsonRpcClient = new JsonRpcClient(
-      {
-        targetUrl: "http://localhost:18282",
-        clientId: "gaugeClientId",
-        jwkPath: ".",
-      },
+      { targetUrl: "http://localhost:18282", clientId, jwkPath: "." },
       {
         host: "localhost",
         port: 18280,
@@ -225,12 +292,41 @@ describe("tunnel connected gauge", () => {
       }
     );
     try {
+      const disconnectsBefore = await forClient(TUNNEL_DISCONNECTS, clientId);
       await jsonRpcClient.run();
       await jsonRpcClient.waitUntilConnected();
-      expect(await connectedTunnels()).toBe(1);
+      expect(await forClient(TUNNELS_CONNECTED, clientId)).toBe(1);
 
       jsonRpcClient.shutdown();
-      expect(await waitFor(connectedTunnels, (count) => count === 0)).toBe(0);
+      expect(
+        await waitFor(
+          () => forClient(TUNNELS_CONNECTED, clientId),
+          (count) => count === 0
+        )
+      ).toBe(0);
+      expect(await forClient(TUNNEL_DISCONNECTS, clientId)).toBe(
+        disconnectsBefore + 1
+      );
+
+      const [dropped] = await recordedBy(() =>
+        request(app.expressApp).get(`/client/${clientId}`)
+      );
+      expect(dropped).toEqual({
+        status_code: 502,
+        outcome: "client_not_found",
+        client_id: clientId,
+        count: 1,
+      });
+
+      const [stranger] = await recordedBy(() =>
+        request(app.expressApp).get("/client/neverConnectedClientId")
+      );
+      expect(stranger).toEqual({
+        status_code: 502,
+        outcome: "client_not_found",
+        client_id: "unknown",
+        count: 1,
+      });
     } finally {
       jsonRpcClient.shutdown();
       app.expressHttpServer.close();

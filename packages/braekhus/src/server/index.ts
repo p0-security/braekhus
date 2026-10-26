@@ -166,6 +166,7 @@ export class JsonRpcServer {
           return;
         }
         const channelId = randomUUID();
+        const tunnelAttributes = { client_id: authenticatedClientId };
 
         const channel = new JSONRPCServerAndClient(
           new JSONRPCServer(),
@@ -213,13 +214,13 @@ export class JsonRpcServer {
           channel.rejectAllPendingRequests("Tunnel closed");
           onChannelClose(channelId);
           this.#channels.delete(channelId);
-          tunnelsConnected.add(-1);
-          tunnelDisconnects.add(1);
+          tunnelsConnected.add(-1, tunnelAttributes);
+          tunnelDisconnects.add(1, tunnelAttributes);
           this.#logger.debug({ channelId }, "Channel closed");
         });
 
         this.#channels.set(channelId, channel);
-        tunnelsConnected.add(1);
+        tunnelsConnected.add(1, tunnelAttributes);
       }
     );
 
@@ -318,6 +319,8 @@ export class RemoteClientRpcServer extends JsonRpcServer {
   #channelIds: Map<ClientId, ChannelId> = new Map();
   // When a new clusterId is set we have to find if there is an existing mapping for that channelId using this reverse mapping
   #clientIds: Map<ChannelId, ClientId> = new Map();
+  // Never pruned, so metrics keep naming a client after its tunnel drops. Bounded by the clients that hold a valid key.
+  #knownClientIds: Set<ClientId> = new Set();
   #logger: Logger;
 
   constructor(
@@ -356,6 +359,13 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     // Add new mapping
     this.#channelIds.set(clientId, channelId);
     this.#clientIds.set(channelId, clientId);
+    this.#knownClientIds.add(clientId);
+  }
+
+  // The proxy port does not authenticate its callers, so an ID from a request path is recorded only once a
+  // tunnel has authenticated as it (or initContext named it). Anything else would let a caller add series.
+  metricClientId(clientId: string): string {
+    return this.#knownClientIds.has(clientId) ? clientId : "unknown";
   }
 
   onChannelConnection(
@@ -363,6 +373,7 @@ export class RemoteClientRpcServer extends JsonRpcServer {
     channel: JSONRPCServerAndClient,
     authenticatedClientId: ClientId
   ) {
+    this.#knownClientIds.add(authenticatedClientId);
     channel.addMethod("setClientId", ({ clientId }) => {
       if (clientId !== authenticatedClientId) {
         this.#logger.warn(
