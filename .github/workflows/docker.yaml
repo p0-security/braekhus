@@ -67,7 +67,7 @@ jobs:
           tags: p0security/braekhus:start-check
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
-      - name: Start the image as client and server
+      - name: Send a request through the image as server and client
         run: .github/scripts/start-image.sh p0security/braekhus:start-check ${{ matrix.platform }}
       - name: Build and push Docker image
         id: docker-build-and-push
