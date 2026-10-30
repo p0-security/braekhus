@@ -1,0 +1,85 @@
+on:
+  workflow_call:
+    inputs:
+      image:
+        required: true
+        type: string
+  # A rollback: moves latest to an image that ran before, without the gate.
+  # A Deploy run still in its gate moves latest again when the gate passes, so
+  # cancel it first.
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "For example p0security/braekhus:sha-15d77eb"
+        required: true
+        type: string
+
+name: Promote latest
+
+env:
+  IMAGE: ${{ inputs.image }}
+
+jobs:
+  # Runs the image as the canary tunnel client on stage-e2e-cluster-v2, then
+  # sends requests through the stage braekhus server to it for 10 minutes.
+  gate:
+    name: Gate on the canary
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # The AWS role and the GCP service account trust only runs on main
+      # (terraform/braekhus-canary.tf in p0-security/infra).
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::175079170519:role/braekhus-canary-gate
+          aws-region: us-west-2
+      - name: Deploy the image to the canary
+        run: |
+          aws eks update-kubeconfig --name stage-e2e-cluster-v2 --region us-west-2
+          kubectl -n p0-security set image deployment/p0-braekhus-proxy braekhus="$IMAGE"
+          kubectl -n p0-security rollout status deployment/p0-braekhus-proxy --timeout=5m
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: projects/63245427267/locations/global/workloadIdentityPools/github-actions/providers/github-actions-provider
+          service_account: braekhus-canary-gate@p0-infra.iam.gserviceaccount.com
+      - name: Get credentials for the stage cluster
+        uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
+        with:
+          cluster_name: stage-gke-cluster
+          location: us-west1-c
+          project_id: p0-stage
+          use_dns_based_endpoint: true
+      # The path runs from the stage server through the tunnel to the canary
+      # client, which forwards it to the EKS API. /readyz needs no token.
+      - name: Send requests through the canary for 10 minutes
+        env:
+          PROBE: /api/v1/namespaces/p0-namespace/services/p0app-stage-braekhus:proxy/proxy/client/p0-stage:EKS-stage-cluster-v2/readyz
+        run: |
+          probe() { kubectl get --raw "$PROBE" --request-timeout=10s; }
+          # The new pod takes a few seconds to register its tunnel.
+          for _ in $(seq 12); do probe && break; sleep 5; done
+          # One retry covers the tunnel's hourly reconnect.
+          for _ in $(seq 60); do probe || { sleep 5; probe; }; sleep 10; done
+
+  promote:
+    name: Move latest
+    needs: gate
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.gate.result == 'success' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Move latest
+        run: docker buildx imagetools create -t p0security/braekhus:latest "$IMAGE"

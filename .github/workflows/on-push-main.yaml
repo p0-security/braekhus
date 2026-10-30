@@ -21,3 +21,10 @@ jobs:
   docker:
     uses: ./.github/workflows/docker.yaml
     secrets: inherit
+
+  promote:
+    needs: docker
+    uses: ./.github/workflows/promote.yaml
+    with:
+      image: ${{ needs.docker.outputs.image }}
+    secrets: inherit
