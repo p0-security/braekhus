@@ -1,6 +1,7 @@
 import { isArray } from "lodash-es";
 import { spawn } from "node:child_process";
 
+import { DEFAULT_JQ_MAX_INPUT_BYTES } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 
 const logger = createLogger({ name: "filter" });
@@ -10,7 +11,23 @@ const logger = createLogger({ name: "filter" });
 // already ships jq (JQ_PATH); call that binary instead.
 const jqBinary = () => process.env.JQ_PATH ?? "jq";
 
-const runJq = (query: string, data: unknown): Promise<unknown> =>
+export const JQ_MAX_INPUT_BYTES_ENV = "BRAEKHUS_JQ_MAX_INPUT_BYTES";
+
+const jqMaxInputBytes = () => {
+  const value = process.env[JQ_MAX_INPUT_BYTES_ENV];
+  if (value === undefined || value === "") return DEFAULT_JQ_MAX_INPUT_BYTES;
+  const bytes = Number(value);
+  if (!Number.isSafeInteger(bytes) || bytes <= 0) {
+    logger.warn(
+      { value },
+      `${JQ_MAX_INPUT_BYTES_ENV} is not a positive integer, using the default`
+    );
+    return DEFAULT_JQ_MAX_INPUT_BYTES;
+  }
+  return bytes;
+};
+
+const runJq = (query: string, input: string): Promise<unknown> =>
   new Promise((resolve, reject) => {
     // node-jq spawned jq with an empty environment. The program comes from a
     // request header, so inheriting this process's environment would let a
@@ -50,9 +67,11 @@ const runJq = (query: string, data: unknown): Promise<unknown> =>
         resolve(text);
       }
     });
-    child.stdin.end(JSON.stringify(data));
+    child.stdin.end(input);
   });
 
+// Throws when the filter cannot be applied, so the request fails with a proxy
+// error instead of returning a body the caller did not ask for.
 export const jqTransform = async (
   data: any,
   jqHeader: string | string[] | undefined
@@ -60,12 +79,17 @@ export const jqTransform = async (
   const query = isArray(jqHeader) ? jqHeader[0] : jqHeader;
   if (!query) return data;
   try {
-    return await runJq(query, data);
+    const input = JSON.stringify(data);
+    const maxBytes = jqMaxInputBytes();
+    const bytes = Buffer.byteLength(input ?? "");
+    if (bytes > maxBytes) {
+      throw new Error(
+        `Response of ${bytes} bytes is larger than the jq input limit of ${maxBytes} bytes`
+      );
+    }
+    return await runJq(query, input);
   } catch (error: any) {
-    logger.error(
-      { error, jpSelectQuery: query },
-      "Error running jq query, ignoring filters"
-    );
-    return data;
+    logger.error({ error, jpSelectQuery: query }, "Error running jq query");
+    throw error;
   }
 };

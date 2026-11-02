@@ -34,3 +34,10 @@ export const SERVER_RECEIVE_LIMITS = receiveLimits(32 * 1024 * 1024);
 export const CLIENT_RECEIVE_LIMITS = receiveLimits(
   2 * MAX_FORWARDED_REQUEST_BODY_BYTES
 );
+
+// The client refuses to run a jq filter on a response larger than this, so a
+// huge target response cannot exhaust the client's memory. It applies to the
+// jq input only: the filter is there to shrink the response. The default
+// matches what the server accepts for an unfiltered response. Override it with
+// the BRAEKHUS_JQ_MAX_INPUT_BYTES environment variable.
+export const DEFAULT_JQ_MAX_INPUT_BYTES = 32 * 1024 * 1024;

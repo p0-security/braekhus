@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { jqTransform } from "../filter.ts";
+import { JQ_MAX_INPUT_BYTES_ENV, jqTransform } from "../filter.ts";
 
 const exampleResponse = {
   status: 200,
@@ -57,24 +57,87 @@ describe("json path filter", () => {
   });
 
   describe("returns original input data", () => {
-    it("on error", async () => {
-      const result = await jqTransform(exampleResponse, "{ { }");
-
-      expect(result).toMatchSnapshot();
-    });
-
     it("when no filter supplied", async () => {
       const result = await jqTransform(exampleResponse, undefined);
 
       expect(result).toMatchSnapshot();
     });
+  });
 
-    it("on error with a body larger than the pipe buffer", async () => {
-      const data = { items: "x".repeat(5 * 1024 * 1024) };
-      const result = await jqTransform(data, ".items[");
-
-      expect(result).toBe(data);
+  describe("fails instead of returning the original data", () => {
+    it("on an invalid program", async () => {
+      await expect(jqTransform(exampleResponse, "{ { }")).rejects.toThrow(
+        /compile error/
+      );
     });
+
+    it("on a runtime error", async () => {
+      await expect(
+        jqTransform({ kind: "Status" }, "[.items[] | .name]")
+      ).rejects.toThrow(/Cannot iterate over null/);
+    });
+
+    it("on an invalid program with a body larger than the pipe buffer", async () => {
+      const data = { items: "x".repeat(5 * 1024 * 1024) };
+
+      await expect(jqTransform(data, ".items[")).rejects.toThrow(
+        /compile error/
+      );
+    });
+  });
+
+  describe("input limit", () => {
+    const withLimit = async (
+      value: string | undefined,
+      run: () => Promise<void>
+    ) => {
+      const previous = process.env[JQ_MAX_INPUT_BYTES_ENV];
+      if (value === undefined) delete process.env[JQ_MAX_INPUT_BYTES_ENV];
+      else process.env[JQ_MAX_INPUT_BYTES_ENV] = value;
+      try {
+        await run();
+      } finally {
+        if (previous === undefined) delete process.env[JQ_MAX_INPUT_BYTES_ENV];
+        else process.env[JQ_MAX_INPUT_BYTES_ENV] = previous;
+      }
+    };
+
+    it("rejects an input larger than the limit without running jq", async () => {
+      await withLimit("100", async () => {
+        const data = { items: "x".repeat(101) };
+
+        // `jq .` would succeed on this input, so only the limit can fail it
+        await expect(jqTransform(data, ".")).rejects.toThrow(
+          /larger than the jq input limit of 100 bytes/
+        );
+      });
+    });
+
+    it("accepts an input within the limit", async () => {
+      await withLimit("1000", async () => {
+        await expect(jqTransform({ a: 1 }, ".a")).resolves.toBe(1);
+      });
+    });
+
+    it("does not limit the output", async () => {
+      await withLimit("100", async () => {
+        const result = await jqTransform(
+          { n: 5 },
+          '[range(.n)] | map("x" * 50)'
+        );
+
+        expect(result).toHaveLength(5);
+      });
+    });
+
+    it.each(["abc", "0", "-5", "1.5"])(
+      "falls back to the default for %s",
+      async (value) => {
+        await withLimit(value, async () => {
+          await expect(jqTransform({ a: 1 }, ".a")).resolves.toBe(1);
+        });
+      }
+    );
   });
 
   it("does not expose the client environment to the filter", async () => {
