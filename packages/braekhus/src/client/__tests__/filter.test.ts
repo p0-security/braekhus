@@ -68,5 +68,25 @@ describe("json path filter", () => {
 
       expect(result).toMatchSnapshot();
     });
+
+    it("on error with a body larger than the pipe buffer", async () => {
+      const data = { items: "x".repeat(5 * 1024 * 1024) };
+      const result = await jqTransform(data, ".items[");
+
+      expect(result).toBe(data);
+    });
+  });
+
+  it("does not expose the client environment to the filter", async () => {
+    process.env.BRAEKHUS_JQ_SENTINEL = "should-not-leak";
+    try {
+      const result = await jqTransform(
+        { a: 1 },
+        'env.BRAEKHUS_JQ_SENTINEL // "unset"'
+      );
+      expect(result).toBe("unset");
+    } finally {
+      delete process.env.BRAEKHUS_JQ_SENTINEL;
+    }
   });
 });

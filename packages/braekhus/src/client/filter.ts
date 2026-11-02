@@ -12,12 +12,21 @@ const jqBinary = () => process.env.JQ_PATH ?? "jq";
 
 const runJq = (query: string, data: unknown): Promise<unknown> =>
   new Promise((resolve, reject) => {
-    const child = spawn(jqBinary(), [query]);
+    // node-jq spawned jq with an empty environment. The program comes from a
+    // request header, so inheriting this process's environment would let a
+    // filter read it.
+    const child = spawn(jqBinary(), [query], { env: {} });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let settled = false;
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.stdin.on("error", (error) => {
+      // jq exits before reading stdin when the program is invalid. Without
+      // this listener Node raises an unhandled EPIPE and the client dies.
+      // The close handler reports the failure.
+      logger.error({ error, jpSelectQuery: query }, "jq stdin error");
+    });
     child.on("error", (error) => {
       if (settled) return;
       settled = true;
