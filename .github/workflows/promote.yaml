@@ -4,6 +4,12 @@ on:
       image:
         required: true
         type: string
+      # A called workflow sees the caller's event, so a manual Deploy run is
+      # also workflow_dispatch. This input marks the gated path instead. It is
+      # unset, so false, on a rollback.
+      gate:
+        type: boolean
+        default: true
   # A rollback: moves latest to an image that ran before, without the gate.
   # A Deploy run still in its gate moves latest again when the gate passes, so
   # cancel it first.
@@ -24,7 +30,7 @@ jobs:
   # sends requests through the stage braekhus server to it for 10 minutes.
   gate:
     name: Gate on the canary
-    if: github.event_name != 'workflow_dispatch'
+    if: inputs.gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -70,7 +76,7 @@ jobs:
   promote:
     name: Move latest
     needs: gate
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.gate.result == 'success' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.gate.result == 'success' || !inputs.gate) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -87,7 +93,7 @@ jobs:
       # A rerun of an older Deploy run, or a merge during the gate, must not
       # move latest back. A rollback is a dispatch, not a rerun.
       - name: Check the commit is the tip of main
-        if: github.event_name == 'push'
+        if: inputs.gate
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
