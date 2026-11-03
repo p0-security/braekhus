@@ -26,5 +26,5 @@ jobs:
     needs: docker
     uses: ./.github/workflows/promote.yaml
     with:
-      image: ${{ needs.docker.outputs.image }}
+      image: p0security/braekhus@${{ needs.docker.outputs.digest }}
     secrets: inherit

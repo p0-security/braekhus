@@ -4,9 +4,11 @@ on:
       docker_image_tags:
         description: "Docker image tags"
         value: ${{ jobs.merge-descriptors.outputs.docker_image_tags }}
-      image:
-        description: "The pushed multi-platform index, by digest"
-        value: ${{ jobs.merge-descriptors.outputs.image }}
+      # The runner drops a job output that contains a secret, and the Docker Hub
+      # username secret is the image's namespace. So this is the digest alone.
+      digest:
+        description: "The digest of the pushed multi-platform index"
+        value: ${{ jobs.merge-descriptors.outputs.digest }}
 
 name: Publish Docker image
 
@@ -134,7 +136,7 @@ jobs:
         run: |
           docker buildx imagetools inspect p0security/braekhus:${{ steps.meta.outputs.version }}
           digest=$(docker buildx imagetools inspect p0security/braekhus:${{ steps.meta.outputs.version }} --format '{{json .Manifest}}' | jq -r .digest)
-          echo "image=p0security/braekhus@$digest" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
     outputs:
       docker_image_tags: ${{ steps.meta.outputs.tags }}
-      image: ${{ steps.inspect.outputs.image }}
+      digest: ${{ steps.inspect.outputs.digest }}

@@ -4,6 +4,12 @@ on:
       image:
         required: true
         type: string
+      # A called workflow sees the caller's event, so a manual Deploy run is
+      # also workflow_dispatch. This input marks the gated path instead. It is
+      # unset, so false, on a rollback.
+      gate:
+        type: boolean
+        default: true
   # A rollback: moves latest to an image that ran before, without the gate.
   # A Deploy run still in its gate moves latest again when the gate passes, so
   # cancel it first.
@@ -21,16 +27,19 @@ env:
 
 jobs:
   # Runs the image as the canary tunnel client on stage-e2e-cluster-v2, then
-  # sends requests through the stage braekhus server to it for 10 minutes.
+  # sends requests through the stage braekhus server to it for 5 minutes.
   gate:
     name: Gate on the canary
-    if: github.event_name != 'workflow_dispatch'
+    if: inputs.gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # The AWS role and the GCP service account trust only runs on main
       # (terraform/braekhus-canary.tf in p0-security/infra).
       - name: Authenticate to AWS
@@ -55,22 +64,13 @@ jobs:
           location: us-west1-c
           project_id: p0-stage
           use_dns_based_endpoint: true
-      # The path runs from the stage server through the tunnel to the canary
-      # client, which forwards it to the EKS API. /readyz needs no token.
-      - name: Send requests through the canary for 10 minutes
-        env:
-          PROBE: /api/v1/namespaces/p0-namespace/services/p0app-stage-braekhus:proxy/proxy/client/p0-stage:EKS-stage-cluster-v2/readyz
-        run: |
-          probe() { kubectl get --raw "$PROBE" --request-timeout=10s; }
-          # The new pod takes a few seconds to register its tunnel.
-          for _ in $(seq 12); do probe && break; sleep 5; done
-          # One retry covers the tunnel's hourly reconnect.
-          for _ in $(seq 60); do probe || { sleep 5; probe; }; sleep 10; done
+      - name: Send requests through the canary for 5 minutes
+        run: .github/scripts/canary-probe.sh 5
 
   promote:
     name: Move latest
     needs: gate
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.gate.result == 'success' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.gate.result == 'success' || !inputs.gate) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -87,7 +87,7 @@ jobs:
       # A rerun of an older Deploy run, or a merge during the gate, must not
       # move latest back. A rollback is a dispatch, not a rerun.
       - name: Check the commit is the tip of main
-        if: github.event_name == 'push'
+        if: inputs.gate
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
