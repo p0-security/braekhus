@@ -47,10 +47,9 @@ RUN yarn workspaces focus @p0security/braekhus --production && yarn cache clean
 # the app so the runtime can start it with node (there is no corepack there).
 RUN cp /root/.cache/node/corepack/v1/yarn/4.9.4/yarn.js /usr/src/app/yarn.js
 
-# node-jq downloads jq 1.7.1 at install time and no node-jq release ships a
-# newer one. The scanners flag that binary, so fetch the current jq release
-# instead, pinned by digest for each architecture, and drop the bundled copy.
-# node-jq reads JQ_PATH at startup, set on the runtime stage below.
+# The client shells out to jq for braekhus-response-jq-transform. Fetch a
+# current release, pinned by digest for each architecture, rather than relying
+# on whatever the build base happens to ship.
 ARG TARGETARCH
 ARG JQ_VERSION=1.8.2
 ARG JQ_SHA256_AMD64=b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f
@@ -62,12 +61,10 @@ RUN curl -fsSLo /usr/local/bin/jq \
        arm64) echo "${JQ_SHA256_ARM64}  /usr/local/bin/jq" | sha256sum -c - ;; \
        *) echo "unsupported TARGETARCH ${TARGETARCH}" && exit 1 ;; \
      esac \
-  && chmod 0755 /usr/local/bin/jq \
-  && rm -f /usr/src/app/node_modules/node-jq/bin/jq
+  && chmod 0755 /usr/local/bin/jq
 
 # Deploy stage: hardened runtime. Carry over the built app from the build stage,
 # production node_modules plus the compiled dist, instead of reinstalling.
-# node-jq's jq binary is in those node_modules, so it must survive this copy.
 FROM ${RUN_BASE} AS run
 
 # The base defaults to uid 65532, but the published image has always
@@ -86,7 +83,8 @@ COPY --from=build /usr/src/app ./
 # the runtime already ships.
 COPY --from=build /bin/cat /bin/cat
 
-# Current jq for node-jq (see the build stage).
+# jq for braekhus-response-jq-transform (see the build stage). The client
+# reads JQ_PATH and falls back to `jq` on PATH.
 COPY --from=build /usr/local/bin/jq /usr/local/bin/jq
 ENV JQ_PATH=/usr/local/bin/jq
 
