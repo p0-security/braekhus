@@ -1,7 +1,7 @@
 import { isArray } from "lodash-es";
 import { spawn } from "node:child_process";
 
-import { DEFAULT_JQ_MAX_INPUT_BYTES } from "../common/constants.ts";
+import { DEFAULT_JQ_WARN_INPUT_BYTES } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 
 const logger = createLogger({ name: "filter" });
@@ -12,19 +12,46 @@ const logger = createLogger({ name: "filter" });
 const jqBinary = () => process.env.JQ_PATH ?? "jq";
 
 export const JQ_MAX_INPUT_BYTES_ENV = "BRAEKHUS_JQ_MAX_INPUT_BYTES";
+export const JQ_INPUT_LIMIT_MODE_ENV = "BRAEKHUS_JQ_INPUT_LIMIT_MODE";
 
-export const jqMaxInputBytes = () => {
+export type JqInputLimit = {
+  // Undefined means no limit.
+  maxBytes: number | undefined;
+  // When false, a body over maxBytes is logged and processed anyway.
+  enforce: boolean;
+};
+
+// There is no limit unless one is configured, so a client behaves as it did
+// before the limit existed. In warn mode a limit that is not configured
+// defaults to DEFAULT_JQ_WARN_INPUT_BYTES, so the warnings show which
+// responses a limit of that size would reject.
+export const jqInputLimit = (): JqInputLimit => {
+  const mode = process.env[JQ_INPUT_LIMIT_MODE_ENV];
+  const enforce = mode !== "warn";
+  if (
+    mode !== undefined &&
+    mode !== "" &&
+    mode !== "warn" &&
+    mode !== "enforce"
+  ) {
+    logger.warn(
+      { value: mode },
+      `${JQ_INPUT_LIMIT_MODE_ENV} is not "enforce" or "warn", using "enforce"`
+    );
+  }
   const value = process.env[JQ_MAX_INPUT_BYTES_ENV];
-  if (value === undefined || value === "") return DEFAULT_JQ_MAX_INPUT_BYTES;
+  const fallback = enforce ? undefined : DEFAULT_JQ_WARN_INPUT_BYTES;
+  if (value === undefined || value === "")
+    return { maxBytes: fallback, enforce };
   const bytes = Number(value);
   if (!Number.isSafeInteger(bytes) || bytes <= 0) {
     logger.warn(
       { value },
-      `${JQ_MAX_INPUT_BYTES_ENV} is not a positive integer, using the default`
+      `${JQ_MAX_INPUT_BYTES_ENV} is not a positive integer, ignoring it`
     );
-    return DEFAULT_JQ_MAX_INPUT_BYTES;
+    return { maxBytes: fallback, enforce };
   }
-  return bytes;
+  return { maxBytes: bytes, enforce };
 };
 
 const runJq = (query: string, input: Buffer): Promise<unknown> =>
@@ -84,10 +111,13 @@ export const jqTransform = async (
   query: string
 ): Promise<unknown> => {
   try {
-    const maxBytes = jqMaxInputBytes();
-    if (body.length > maxBytes) {
-      throw new Error(
-        `Response of ${body.length} bytes is larger than the jq input limit of ${maxBytes} bytes`
+    const { maxBytes, enforce } = jqInputLimit();
+    if (maxBytes !== undefined && body.length > maxBytes) {
+      const message = `Response of ${body.length} bytes is larger than the jq input limit of ${maxBytes} bytes`;
+      if (enforce) throw new Error(message);
+      logger.warn(
+        { bytes: body.length, maxBytes, jpSelectQuery: query },
+        `${message}; running jq anyway because ${JQ_INPUT_LIMIT_MODE_ENV} is "warn"`
       );
     }
     return await runJq(query, body);

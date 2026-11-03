@@ -82,7 +82,8 @@ A request can carry a `braekhus-response-jq-transform` header with a jq program.
 
 - Responses that are not 2xx are returned unchanged, so a caller still sees the target's own error body.
 - If jq cannot be applied to a 2xx response, because the program is invalid, fails at runtime, or the input is over the limit, the call fails and the proxy answers 502. The unfiltered body is never returned in its place.
-- `BRAEKHUS_JQ_MAX_INPUT_BYTES` caps the size of the response body handed to jq, measured on the bytes the target sent after decompression. The client aborts the download once the body passes the cap. The default is 33554432 (32 MiB). A value that is not a positive integer is ignored with a warning. The output is not limited.
+- By default there is no limit on the size of the response handed to jq. `BRAEKHUS_JQ_MAX_INPUT_BYTES` sets one, measured on the bytes the target sent after decompression. The client aborts the download once the body passes it and the call fails with a 502. A value that is not a positive integer is ignored with a warning. The output is not limited.
+- `BRAEKHUS_JQ_INPUT_LIMIT_MODE=warn` logs a warning for every response over the limit and runs jq on it anyway, to see which responses a limit would reject before enforcing it. Without `BRAEKHUS_JQ_MAX_INPUT_BYTES`, the limit in `warn` mode is 33554432 (32 MiB). The default mode is `enforce`; any other value is ignored with a warning.
 
 ### Development
 

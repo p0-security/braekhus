@@ -13,7 +13,7 @@ import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
 import { JQ_HEADER } from "../../types/index.ts";
-import { JQ_MAX_INPUT_BYTES_ENV } from "../filter.ts";
+import { JQ_INPUT_LIMIT_MODE_ENV, JQ_MAX_INPUT_BYTES_ENV } from "../filter.ts";
 import { JsonRpcClient } from "../index.ts";
 
 const WS_PORT = 18095;
@@ -142,6 +142,7 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
     });
     afterEach(() => {
       delete process.env[JQ_MAX_INPUT_BYTES_ENV];
+      delete process.env[JQ_INPUT_LIMIT_MODE_ENV];
     });
 
     it("fails the call when the response is larger than the limit", async () => {
@@ -152,6 +153,14 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
       expect(reply.error).toMatchObject({
         message: expect.stringContaining("maxContentLength size of 1000"),
       });
+    });
+
+    it("filters a response over the limit when the mode is warn", async () => {
+      process.env[JQ_INPUT_LIMIT_MODE_ENV] = "warn";
+
+      const reply = await call("/big", ".items | length");
+
+      expect(reply.result).toMatchObject({ status: 200, data: 10_000 });
     });
 
     it("does not apply the limit without a filter", async () => {

@@ -17,12 +17,7 @@ import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
 import { JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
 import { Backoff } from "./backoff.ts";
-import {
-  jqMaxInputBytes,
-  jqProgram,
-  jqTransform,
-  parseBody,
-} from "./filter.ts";
+import { jqInputLimit, jqProgram, jqTransform, parseBody } from "./filter.ts";
 import { jwt } from "./jwks.ts";
 
 const PING_TIMEOUT_MS = 30000;
@@ -30,6 +25,13 @@ const PING_TIMEOUT_MS = 30000;
 /**
  * Bi-directional JSON RPC client
  */
+const jqMaxContentLength = () => {
+  const { maxBytes, enforce } = jqInputLimit();
+  return enforce && maxBytes !== undefined
+    ? { maxContentLength: maxBytes }
+    : {};
+};
+
 export class JsonRpcClient {
   #jsonRpcClient = deferral<JSONRPCServerAndClient>();
   #connected = deferral<void>();
@@ -200,12 +202,12 @@ export class JsonRpcClient {
           request.options?.timeoutMillis ||
           DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
         // jq parses the body itself, so a filtered response is fetched raw
-        // instead of being parsed here and serialized again. axios aborts the
-        // download once it passes the limit, so an oversized body is never
-        // fully buffered.
+        // instead of being parsed here and serialized again. A limit that is
+        // enforced makes axios abort the download once the body passes it, so
+        // an oversized body is never fully buffered.
         ...(jqQuery && {
           responseType: "arraybuffer" as const,
-          maxContentLength: jqMaxInputBytes(),
+          ...jqMaxContentLength(),
         }),
       });
       // The filter shapes a successful response. Error bodies, such as a

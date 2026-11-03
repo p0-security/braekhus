@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  JQ_INPUT_LIMIT_MODE_ENV,
   JQ_MAX_INPUT_BYTES_ENV,
+  jqInputLimit,
   jqProgram,
   jqTransform,
   parseBody,
@@ -51,6 +53,14 @@ const exampleResponse = {
   },
 };
 
+const logger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+}));
+vi.mock("../../log/index.ts", () => ({ createLogger: () => logger }));
+
 const body = (value: unknown) => Buffer.from(JSON.stringify(value));
 
 describe("json path filter", () => {
@@ -86,20 +96,57 @@ describe("json path filter", () => {
   });
 
   describe("input limit", () => {
-    const withLimit = async (
-      value: string | undefined,
+    const withEnv = async (
+      env: Record<string, string | undefined>,
       run: () => Promise<void>
     ) => {
-      const previous = process.env[JQ_MAX_INPUT_BYTES_ENV];
-      if (value === undefined) delete process.env[JQ_MAX_INPUT_BYTES_ENV];
-      else process.env[JQ_MAX_INPUT_BYTES_ENV] = value;
+      const previous = Object.fromEntries(
+        Object.keys(env).map((key) => [key, process.env[key]])
+      );
+      const set = (values: Record<string, string | undefined>) => {
+        for (const [key, value] of Object.entries(values)) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      };
+      set(env);
       try {
         await run();
       } finally {
-        if (previous === undefined) delete process.env[JQ_MAX_INPUT_BYTES_ENV];
-        else process.env[JQ_MAX_INPUT_BYTES_ENV] = previous;
+        set(previous);
       }
     };
+    const withLimit = (value: string | undefined, run: () => Promise<void>) =>
+      withEnv({ [JQ_MAX_INPUT_BYTES_ENV]: value }, run);
+    const withWarnMode = (
+      value: string | undefined,
+      run: () => Promise<void>
+    ) =>
+      withEnv(
+        {
+          [JQ_MAX_INPUT_BYTES_ENV]: value,
+          [JQ_INPUT_LIMIT_MODE_ENV]: "warn",
+        },
+        run
+      );
+
+    beforeEach(() => {
+      logger.warn.mockClear();
+    });
+
+    it("has no limit by default", async () => {
+      await withLimit(undefined, async () => {
+        expect(jqInputLimit()).toEqual({ maxBytes: undefined, enforce: true });
+        // Larger than the 32 MiB warn-mode default
+        const input = Buffer.from(
+          JSON.stringify({ items: "x".repeat(33 * 1024 * 1024) })
+        );
+
+        await expect(jqTransform(input, ".items | length")).resolves.toBe(
+          33 * 1024 * 1024
+        );
+      });
+    });
 
     it("rejects an input larger than the limit without running jq", async () => {
       await withLimit("100", async () => {
@@ -130,13 +177,70 @@ describe("json path filter", () => {
     });
 
     it.each(["abc", "0", "-5", "1.5"])(
-      "falls back to the default for %s",
+      "ignores %s as a limit",
       async (value) => {
         await withLimit(value, async () => {
+          expect(jqInputLimit().maxBytes).toBeUndefined();
           await expect(jqTransform(body({ a: 1 }), ".a")).resolves.toBe(1);
         });
       }
     );
+
+    describe("in warn mode", () => {
+      it("runs jq on an input over the limit and logs a warning", async () => {
+        await withWarnMode("100", async () => {
+          const data = { items: "x".repeat(101) };
+
+          await expect(
+            jqTransform(body(data), ".items | length")
+          ).resolves.toBe(101);
+          expect(logger.warn).toHaveBeenCalledTimes(1);
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.objectContaining({ maxBytes: 100, bytes: 113 }),
+            expect.stringContaining("larger than the jq input limit of 100")
+          );
+        });
+      });
+
+      it("warns on every input over the limit", async () => {
+        await withWarnMode("10", async () => {
+          await jqTransform(body({ a: "x".repeat(20) }), ".a");
+          await jqTransform(body({ a: "x".repeat(20) }), ".a");
+
+          expect(logger.warn).toHaveBeenCalledTimes(2);
+        });
+      });
+
+      it("does not warn about an input within the limit", async () => {
+        await withWarnMode("1000", async () => {
+          await jqTransform(body({ a: 1 }), ".a");
+
+          expect(logger.warn).not.toHaveBeenCalled();
+        });
+      });
+
+      it("defaults the limit to 32 MiB", async () => {
+        await withWarnMode(undefined, async () => {
+          expect(jqInputLimit()).toEqual({
+            maxBytes: 32 * 1024 * 1024,
+            enforce: false,
+          });
+        });
+      });
+    });
+
+    it("enforces the limit when the mode is not recognized", async () => {
+      await withEnv(
+        { [JQ_MAX_INPUT_BYTES_ENV]: "100", [JQ_INPUT_LIMIT_MODE_ENV]: "off" },
+        async () => {
+          expect(jqInputLimit()).toEqual({ maxBytes: 100, enforce: true });
+          expect(logger.warn).toHaveBeenCalledWith(
+            { value: "off" },
+            expect.stringContaining(JQ_INPUT_LIMIT_MODE_ENV)
+          );
+        }
+      );
+    });
   });
 
   it("does not expose the client environment to the filter", async () => {
