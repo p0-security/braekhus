@@ -137,7 +137,7 @@ describe("json path filter", () => {
     it("has no limit by default", async () => {
       await withLimit(undefined, async () => {
         expect(jqInputLimit()).toEqual({ maxBytes: undefined, enforce: true });
-        // Larger than the 32 MiB warn-mode default
+        // 33 MiB, over what the server accepts for an unfiltered response
         const input = Buffer.from(
           JSON.stringify({ items: "x".repeat(33 * 1024 * 1024) })
         );
@@ -219,21 +219,24 @@ describe("json path filter", () => {
         });
       });
 
-      it("defaults the limit to 32 MiB", async () => {
+      it("never warns when there is no limit", async () => {
         await withWarnMode(undefined, async () => {
           expect(jqInputLimit()).toEqual({
-            maxBytes: 32 * 1024 * 1024,
+            maxBytes: undefined,
             enforce: false,
           });
+          await jqTransform(body({ a: "x".repeat(1000) }), ".a");
+
+          expect(logger.warn).not.toHaveBeenCalled();
         });
       });
     });
 
-    it("enforces the limit when the mode is not recognized", async () => {
+    it("falls back to warn mode when the mode is not recognized", async () => {
       await withEnv(
         { [JQ_MAX_INPUT_BYTES_ENV]: "100", [JQ_INPUT_LIMIT_MODE_ENV]: "off" },
         async () => {
-          expect(jqInputLimit()).toEqual({ maxBytes: 100, enforce: true });
+          expect(jqInputLimit()).toEqual({ maxBytes: 100, enforce: false });
           expect(logger.warn).toHaveBeenCalledWith(
             { value: "off" },
             expect.stringContaining(JQ_INPUT_LIMIT_MODE_ENV)

@@ -1,7 +1,6 @@
 import { isArray } from "lodash-es";
 import { spawn } from "node:child_process";
 
-import { DEFAULT_JQ_WARN_INPUT_BYTES } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 
 const logger = createLogger({ name: "filter" });
@@ -22,34 +21,29 @@ export type JqInputLimit = {
 };
 
 // There is no limit unless one is configured, so a client behaves as it did
-// before the limit existed. In warn mode a limit that is not configured
-// defaults to DEFAULT_JQ_WARN_INPUT_BYTES, so the warnings show which
-// responses a limit of that size would reject.
+// before the limit existed. The limit applies to the jq input only, since the
+// filter is there to shrink the response.
 export const jqInputLimit = (): JqInputLimit => {
   const mode = process.env[JQ_INPUT_LIMIT_MODE_ENV];
-  const enforce = mode !== "warn";
-  if (
-    mode !== undefined &&
-    mode !== "" &&
-    mode !== "warn" &&
-    mode !== "enforce"
-  ) {
+  const knownMode =
+    mode === undefined || mode === "" || mode === "enforce" || mode === "warn";
+  if (!knownMode) {
     logger.warn(
       { value: mode },
-      `${JQ_INPUT_LIMIT_MODE_ENV} is not "enforce" or "warn", using "enforce"`
+      `${JQ_INPUT_LIMIT_MODE_ENV} is not "enforce" or "warn", using "warn"`
     );
   }
+  const enforce = knownMode && mode !== "warn";
   const value = process.env[JQ_MAX_INPUT_BYTES_ENV];
-  const fallback = enforce ? undefined : DEFAULT_JQ_WARN_INPUT_BYTES;
   if (value === undefined || value === "")
-    return { maxBytes: fallback, enforce };
+    return { maxBytes: undefined, enforce };
   const bytes = Number(value);
   if (!Number.isSafeInteger(bytes) || bytes <= 0) {
     logger.warn(
       { value },
       `${JQ_MAX_INPUT_BYTES_ENV} is not a positive integer, ignoring it`
     );
-    return { maxBytes: fallback, enforce };
+    return { maxBytes: undefined, enforce };
   }
   return { maxBytes: bytes, enforce };
 };

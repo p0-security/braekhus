@@ -34,10 +34,3 @@ export const SERVER_RECEIVE_LIMITS = receiveLimits(32 * 1024 * 1024);
 export const CLIENT_RECEIVE_LIMITS = receiveLimits(
   2 * MAX_FORWARDED_REQUEST_BODY_BYTES
 );
-
-// The jq input limit is off unless BRAEKHUS_JQ_MAX_INPUT_BYTES sets one. This
-// is the size used when BRAEKHUS_JQ_INPUT_LIMIT_MODE is "warn" and no limit is
-// configured: the most the server accepts for an unfiltered response. The
-// limit applies to the jq input only, since the filter is there to shrink the
-// response.
-export const DEFAULT_JQ_WARN_INPUT_BYTES = 32 * 1024 * 1024;
