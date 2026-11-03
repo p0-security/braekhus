@@ -13,7 +13,7 @@ const jqBinary = () => process.env.JQ_PATH ?? "jq";
 
 export const JQ_MAX_INPUT_BYTES_ENV = "BRAEKHUS_JQ_MAX_INPUT_BYTES";
 
-const jqMaxInputBytes = () => {
+export const jqMaxInputBytes = () => {
   const value = process.env[JQ_MAX_INPUT_BYTES_ENV];
   if (value === undefined || value === "") return DEFAULT_JQ_MAX_INPUT_BYTES;
   const bytes = Number(value);
@@ -27,7 +27,7 @@ const jqMaxInputBytes = () => {
   return bytes;
 };
 
-const runJq = (query: string, input: string): Promise<unknown> =>
+const runJq = (query: string, input: Buffer): Promise<unknown> =>
   new Promise((resolve, reject) => {
     // node-jq spawned jq with an empty environment. The program comes from a
     // request header, so inheriting this process's environment would let a
@@ -70,26 +70,40 @@ const runJq = (query: string, input: string): Promise<unknown> =>
     child.stdin.end(input);
   });
 
-// Throws when the filter cannot be applied, so the request fails with a proxy
-// error instead of returning a body the caller did not ask for.
-export const jqTransform = async (
-  data: any,
+export const jqProgram = (
   jqHeader: string | string[] | undefined
-): Promise<any> => {
-  const query = isArray(jqHeader) ? jqHeader[0] : jqHeader;
-  if (!query) return data;
+): string | undefined =>
+  (isArray(jqHeader) ? jqHeader[0] : jqHeader) || undefined;
+
+// Throws when the filter cannot be applied, so the request fails with a proxy
+// error instead of returning a body the caller did not ask for. `body` is the
+// raw response body: jq parses it itself, so it is not parsed or serialized
+// here.
+export const jqTransform = async (
+  body: Buffer,
+  query: string
+): Promise<unknown> => {
   try {
-    const input = JSON.stringify(data);
     const maxBytes = jqMaxInputBytes();
-    const bytes = Buffer.byteLength(input ?? "");
-    if (bytes > maxBytes) {
+    if (body.length > maxBytes) {
       throw new Error(
-        `Response of ${bytes} bytes is larger than the jq input limit of ${maxBytes} bytes`
+        `Response of ${body.length} bytes is larger than the jq input limit of ${maxBytes} bytes`
       );
     }
-    return await runJq(query, input);
+    return await runJq(query, body);
   } catch (error: any) {
     logger.error({ error, jpSelectQuery: query }, "Error running jq query");
     throw error;
+  }
+};
+
+// Mirrors axios's default response handling for a body that was fetched raw:
+// JSON when it parses, the text otherwise.
+export const parseBody = (body: Buffer): unknown => {
+  const text = body.toString("utf-8");
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
 };

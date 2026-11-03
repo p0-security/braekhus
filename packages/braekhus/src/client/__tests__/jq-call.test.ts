@@ -1,10 +1,19 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
 import { JQ_HEADER } from "../../types/index.ts";
+import { JQ_MAX_INPUT_BYTES_ENV } from "../filter.ts";
 import { JsonRpcClient } from "../index.ts";
 
 const WS_PORT = 18095;
@@ -25,7 +34,7 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
   let ws: WebSocket;
   let nextId = 1;
 
-  const call = async (path: string, filter: string) => {
+  const call = async (path: string, filter?: string) => {
     const id = nextId++;
     const reply = nextMessage(ws);
     ws.send(
@@ -34,7 +43,7 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
         id,
         method: "call",
         params: {
-          headers: { [JQ_HEADER]: filter },
+          headers: filter === undefined ? {} : { [JQ_HEADER]: filter },
           method: "GET",
           path,
           params: {},
@@ -46,6 +55,16 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
 
   beforeAll(async () => {
     target = createServer((req, res) => {
+      if (req.url === "/text-error") {
+        res.writeHead(500, { "content-type": "text/plain" });
+        res.end("upstream exploded");
+        return;
+      }
+      if (req.url === "/big") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ items: "x".repeat(10_000) }));
+        return;
+      }
       const forbidden = req.url === "/forbidden";
       res.writeHead(forbidden ? 403 : 200, {
         "content-type": "application/json",
@@ -99,6 +118,46 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
     expect(reply.result).toBeUndefined();
     expect(reply.error).toMatchObject({
       message: expect.stringContaining("compile error"),
+    });
+  });
+
+  it("returns a response unchanged when there is no filter", async () => {
+    const reply = await call("/list");
+
+    expect(reply.result).toMatchObject({ status: 200, data: LIST });
+  });
+
+  it("returns a non-JSON error body as text when there is a filter", async () => {
+    const reply = await call("/text-error", ".items");
+
+    expect(reply.result).toMatchObject({
+      status: 500,
+      data: "upstream exploded",
+    });
+  });
+
+  describe("input limit", () => {
+    beforeEach(() => {
+      process.env[JQ_MAX_INPUT_BYTES_ENV] = "1000";
+    });
+    afterEach(() => {
+      delete process.env[JQ_MAX_INPUT_BYTES_ENV];
+    });
+
+    it("fails the call when the response is larger than the limit", async () => {
+      // `jq .` would succeed on this body, so only the limit can fail it
+      const reply = await call("/big", ".");
+
+      expect(reply.result).toBeUndefined();
+      expect(reply.error).toMatchObject({
+        message: expect.stringContaining("maxContentLength size of 1000"),
+      });
+    });
+
+    it("does not apply the limit without a filter", async () => {
+      const reply = await call("/big");
+
+      expect(reply.result).toMatchObject({ status: 200 });
     });
   });
 });
