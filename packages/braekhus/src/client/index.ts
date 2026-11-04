@@ -1,3 +1,4 @@
+import type { AxiosResponse } from "axios";
 import axios from "axios";
 import {
   JSONRPCClient,
@@ -17,10 +18,34 @@ import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
 import { JQ_FILTER_FAILED_ERROR, JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
 import { Backoff } from "./backoff.ts";
-import { jqProgram, jqTransform, parseBody } from "./filter.ts";
+import { jqInputLimit, jqProgram, jqTransform, parseBody } from "./filter.ts";
 import { jwt } from "./jwks.ts";
 
 const PING_TIMEOUT_MS = 30000;
+
+const jqMaxContentLength = () => {
+  const { maxBytes, enforce } = jqInputLimit();
+  return enforce && maxBytes !== undefined
+    ? { maxContentLength: maxBytes }
+    : {};
+};
+
+// The body of the 502 the client returns when the jq filter cannot be applied. It is a
+// response, not a thrown error, because the server retries every thrown error and
+// these failures are deterministic.
+const jqFailedResponse = (error: any): ForwardedResponse => ({
+  headers: {},
+  status: 502,
+  statusText: "Bad Gateway",
+  data: {
+    error: JQ_FILTER_FAILED_ERROR,
+    message: `Could not apply the response filter: ${error?.message ?? error}`,
+  },
+});
+
+// axios aborts the download with this error once a body passes `maxContentLength`.
+const isInputLimitError = (error: any) =>
+  axios.isAxiosError(error) && /maxContentLength/.test(error.message);
 
 /**
  * Bi-directional JSON RPC client
@@ -180,24 +205,41 @@ export class JsonRpcClient {
       // 2. The Host header should be switched out to the host this client is targeting.
       // 3. The jq header is an instruction to this client, not to the target.
       const jqQuery = jqProgram(request.headers[JQ_HEADER]);
-      const response = await axios({
-        baseURL: this.#targetUrl,
-        url: request.path,
-        method: request.method,
-        headers: {
-          ...omit(request.headers, "content-length", JQ_HEADER),
-          host: this.#targetHostName,
-        },
-        params: request.params,
-        data: request.data,
-        validateStatus: () => true, // do not throw, we return all status codes
-        timeout:
-          request.options?.timeoutMillis ||
-          DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
-        // jq parses the body itself, so a filtered response is fetched raw
-        // instead of being parsed here and serialized again.
-        ...(jqQuery && { responseType: "arraybuffer" as const }),
-      });
+      let response: AxiosResponse;
+      try {
+        response = await axios({
+          baseURL: this.#targetUrl,
+          url: request.path,
+          method: request.method,
+          headers: {
+            ...omit(request.headers, "content-length", JQ_HEADER),
+            host: this.#targetHostName,
+          },
+          params: request.params,
+          data: request.data,
+          validateStatus: () => true, // do not throw, we return all status codes
+          timeout:
+            request.options?.timeoutMillis ||
+            DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
+          // jq parses the body itself, so a filtered response is fetched raw
+          // instead of being parsed here and serialized again. A limit that is
+          // enforced makes axios abort the download once the body passes it, so
+          // an oversized body is never fully buffered.
+          ...(jqQuery && {
+            responseType: "arraybuffer" as const,
+            ...jqMaxContentLength(),
+          }),
+        });
+      } catch (error: any) {
+        if (jqQuery && isInputLimitError(error)) {
+          this.#logger.error(
+            { error, jpSelectQuery: jqQuery },
+            "Response is over the jq input limit"
+          );
+          return jqFailedResponse(error);
+        }
+        throw error;
+      }
       // The filter shapes a successful response. Error bodies, such as a
       // Kubernetes Status object, usually do not have the shape the filter
       // expects, and the caller needs them unchanged to tell target errors
@@ -217,18 +259,7 @@ export class JsonRpcClient {
           data,
         };
       } catch (error: any) {
-        // Return a 502 instead of throwing: the server retries every thrown
-        // error, which would delay this deterministic failure by seconds. The
-        // unfiltered body is deliberately not returned.
-        forwardedResponse = {
-          headers: {},
-          status: 502,
-          statusText: "Bad Gateway",
-          data: {
-            error: JQ_FILTER_FAILED_ERROR,
-            message: `Could not apply the response filter: ${error?.message ?? error}`,
-          },
-        };
+        forwardedResponse = jqFailedResponse(error);
       }
       this.#logger.debug({ response: forwardedResponse }, "forwarded response");
       return forwardedResponse;
