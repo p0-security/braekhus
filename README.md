@@ -81,7 +81,9 @@ NODE_EXTRA_CA_CERTS=./client/ca.pem yarn start:dev:client --targetUrl https://{{
 A request can carry a `braekhus-response-jq-transform` header with a jq program. The client runs it on the target's successful (2xx) response and returns the result. The client needs `jq` on its `PATH`, or at `JQ_PATH`; the published image provides it.
 
 - Responses that are not 2xx are returned unchanged, so a caller still sees the target's own error body.
-- If jq cannot be applied to a 2xx response, because the program is invalid or fails at runtime, the client answers 502 with a JSON body `{ "error": "jq_filter_failed", "message": ... }`. The unfiltered body is never returned in its place. Because this is a response, not an error, the server does not retry it.
+- If jq cannot be applied to a 2xx response, because the program is invalid, fails at runtime, or the input is over the limit, the client answers 502 with a JSON body `{ "error": "jq_filter_failed", "message": ... }`. The unfiltered body is never returned in its place. Because this is a response, not an error, the server does not retry it.
+- By default there is no limit on the size of the response handed to jq. `BRAEKHUS_JQ_MAX_INPUT_BYTES` sets one, measured on the bytes the target sent after decompression. The client aborts the download once the body passes it and answers 502. A value that is not a positive integer is ignored with a warning. The output is not limited.
+- `BRAEKHUS_JQ_INPUT_LIMIT_MODE=warn` logs a warning for every response over `BRAEKHUS_JQ_MAX_INPUT_BYTES` and runs jq on it anyway, to see which responses a limit would reject before enforcing it. Without a limit it never logs. The default mode is `enforce`; any other value is ignored with a warning and treated as `warn`.
 
 ### Development
 
