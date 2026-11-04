@@ -194,8 +194,15 @@ export class JsonRpcClient {
           request.options?.timeoutMillis ||
           DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
       });
+      // The filter shapes a successful response. Error bodies, such as a
+      // Kubernetes Status object, usually do not have the shape the filter
+      // expects, and the caller needs them unchanged to tell target errors
+      // from proxy errors.
+      const isSuccess = response.status >= 200 && response.status < 300;
       const jpSelectHeader = request.headers[JQ_HEADER];
-      const data = await jqTransform(response.data, jpSelectHeader);
+      const data = isSuccess
+        ? await jqTransform(response.data, jpSelectHeader)
+        : response.data;
       const forwardedResponse: ForwardedResponse = {
         headers: response.headers,
         status: response.status,
