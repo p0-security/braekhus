@@ -76,6 +76,13 @@ Example command:
 NODE_EXTRA_CA_CERTS=./client/ca.pem yarn start:dev:client --targetUrl https://{{ip-or-host}} --clientId myClientId --tunnelHost localhost --tunnelPort 8080
 ```
 
+### Response filter
+
+A request can carry a `braekhus-response-jq-transform` header with a jq program. The client runs it on the target's successful (2xx) response and returns the result. The client needs `jq` on its `PATH`, or at `JQ_PATH`; the published image provides it.
+
+- Responses that are not 2xx are returned unchanged, so a caller still sees the target's own error body.
+- If jq cannot be applied to a 2xx response, because the program is invalid or fails at runtime, the client answers 502 with a JSON body `{ "error": "jq_filter_failed", "message": ... }`. The unfiltered body is never returned in its place. Because this is a response, not an error, the server does not retry it.
+
 ### Development
 
 - For linting Dockerfile: install [hadolint](https://github.com/hadolint/hadolint/tree/master#install) and enable the hadolint VSCode extension

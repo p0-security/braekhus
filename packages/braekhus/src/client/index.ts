@@ -14,7 +14,7 @@ import {
 } from "../common/constants.ts";
 import { createLogger } from "../log/index.ts";
 import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
-import { JQ_HEADER } from "../types/index.ts";
+import { JQ_FILTER_FAILED_ERROR, JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
 import { Backoff } from "./backoff.ts";
 import { jqTransform } from "./filter.ts";
@@ -200,15 +200,30 @@ export class JsonRpcClient {
       // from proxy errors.
       const isSuccess = response.status >= 200 && response.status < 300;
       const jpSelectHeader = request.headers[JQ_HEADER];
-      const data = isSuccess
-        ? await jqTransform(response.data, jpSelectHeader)
-        : response.data;
-      const forwardedResponse: ForwardedResponse = {
-        headers: response.headers,
-        status: response.status,
-        statusText: response.statusText,
-        data,
-      };
+      let forwardedResponse: ForwardedResponse;
+      try {
+        forwardedResponse = {
+          headers: response.headers,
+          status: response.status,
+          statusText: response.statusText,
+          data: isSuccess
+            ? await jqTransform(response.data, jpSelectHeader)
+            : response.data,
+        };
+      } catch (error: any) {
+        // Return a 502 instead of throwing: the server retries every thrown
+        // error, which would delay this deterministic failure by seconds. The
+        // unfiltered body is deliberately not returned.
+        forwardedResponse = {
+          headers: {},
+          status: 502,
+          statusText: "Bad Gateway",
+          data: {
+            error: JQ_FILTER_FAILED_ERROR,
+            message: `Could not apply the response filter: ${error?.message ?? error}`,
+          },
+        };
+      }
       this.#logger.debug({ response: forwardedResponse }, "forwarded response");
       return forwardedResponse;
     });
