@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
-import { JQ_HEADER } from "../../types/index.ts";
+import { JQ_FILTER_FAILED_ERROR, JQ_HEADER } from "../../types/index.ts";
 import { JsonRpcClient } from "../index.ts";
 
 const WS_PORT = 18098;
@@ -91,5 +91,27 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
     const reply = await call("/forbidden", "{ items: [.items // [] | .[]] }");
 
     expect(reply.result).toMatchObject({ status: 403, data: STATUS });
+  });
+
+  it("returns an error response from the target unchanged, even if the filter would fail on it", async () => {
+    // `.items[]` on a Status object makes jq fail with "Cannot iterate over null"
+    const reply = await call("/forbidden", "{ items: [.items[] | { name }] }");
+
+    expect(reply.result).toMatchObject({ status: 403, data: STATUS });
+  });
+
+  it("answers 502 with an error body when the filter cannot be applied to a successful response", async () => {
+    const reply = await call("/list", "{ { }");
+
+    expect(reply.error).toBeUndefined();
+    expect(reply.result).toMatchObject({
+      status: 502,
+      data: {
+        error: JQ_FILTER_FAILED_ERROR,
+        message: expect.stringContaining("compile error"),
+      },
+    });
+    // The unfiltered body must not leak into the response
+    expect(JSON.stringify(reply.result)).not.toContain('"extra"');
   });
 });

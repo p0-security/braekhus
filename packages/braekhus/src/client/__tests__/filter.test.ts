@@ -57,23 +57,32 @@ describe("json path filter", () => {
   });
 
   describe("returns original input data", () => {
-    it("on error", async () => {
-      const result = await jqTransform(exampleResponse, "{ { }");
-
-      expect(result).toMatchSnapshot();
-    });
-
     it("when no filter supplied", async () => {
       const result = await jqTransform(exampleResponse, undefined);
 
       expect(result).toMatchSnapshot();
     });
+  });
 
-    it("on error with a body larger than the pipe buffer", async () => {
+  describe("fails instead of returning the original data", () => {
+    it("on an invalid program", async () => {
+      await expect(jqTransform(exampleResponse, "{ { }")).rejects.toThrow(
+        /compile error/
+      );
+    });
+
+    it("on a runtime error", async () => {
+      await expect(
+        jqTransform({ kind: "Status" }, "[.items[] | .name]")
+      ).rejects.toThrow(/Cannot iterate over null/);
+    });
+
+    it("on an invalid program with a body larger than the pipe buffer", async () => {
       const data = { items: "x".repeat(5 * 1024 * 1024) };
-      const result = await jqTransform(data, ".items[");
 
-      expect(result).toBe(data);
+      await expect(jqTransform(data, ".items[")).rejects.toThrow(
+        /compile error/
+      );
     });
   });
 
