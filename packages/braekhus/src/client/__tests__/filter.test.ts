@@ -232,6 +232,26 @@ describe("json path filter", () => {
       });
     });
 
+    it("reports each bad value once, however many requests read it", async () => {
+      await withEnv(
+        {
+          [JQ_MAX_INPUT_BYTES_ENV]: "bad-limit-once",
+          [JQ_INPUT_LIMIT_MODE_ENV]: "bad-mode-once",
+        },
+        async () => {
+          for (let i = 0; i < 3; i++) jqInputLimit();
+
+          // One warning for the limit and one for the mode, not three of each
+          expect(logger.warn).toHaveBeenCalledTimes(2);
+        }
+      );
+      await withLimit("another-bad-limit", async () => {
+        jqInputLimit();
+
+        expect(logger.warn).toHaveBeenCalledTimes(3);
+      });
+    });
+
     it("falls back to warn mode when the mode is not recognized", async () => {
       await withEnv(
         { [JQ_MAX_INPUT_BYTES_ENV]: "100", [JQ_INPUT_LIMIT_MODE_ENV]: "off" },

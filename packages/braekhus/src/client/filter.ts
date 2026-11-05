@@ -20,6 +20,16 @@ export type JqInputLimit = {
   enforce: boolean;
 };
 
+// The limit is read on every request, so a misconfigured value would be
+// reported on every request too. Each bad value is reported once instead.
+const reported = new Set<string>();
+const warnOnce = (name: string, value: string, message: string) => {
+  const key = `${name}=${value}`;
+  if (reported.has(key)) return;
+  reported.add(key);
+  logger.warn({ value }, message);
+};
+
 // There is no limit unless one is configured, so a client behaves as it did
 // before the limit existed. The limit applies to the jq input only, since the
 // filter is there to shrink the response.
@@ -28,8 +38,9 @@ export const jqInputLimit = (): JqInputLimit => {
   const knownMode =
     mode === undefined || mode === "" || mode === "enforce" || mode === "warn";
   if (!knownMode) {
-    logger.warn(
-      { value: mode },
+    warnOnce(
+      JQ_INPUT_LIMIT_MODE_ENV,
+      mode,
       `${JQ_INPUT_LIMIT_MODE_ENV} is not "enforce" or "warn", using "warn"`
     );
   }
@@ -39,8 +50,9 @@ export const jqInputLimit = (): JqInputLimit => {
     return { maxBytes: undefined, enforce };
   const bytes = Number(value);
   if (!Number.isSafeInteger(bytes) || bytes <= 0) {
-    logger.warn(
-      { value },
+    warnOnce(
+      JQ_MAX_INPUT_BYTES_ENV,
+      value,
       `${JQ_MAX_INPUT_BYTES_ENV} is not a positive integer, ignoring it`
     );
     return { maxBytes: undefined, enforce };
