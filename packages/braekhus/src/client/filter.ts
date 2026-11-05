@@ -10,7 +10,7 @@ const logger = createLogger({ name: "filter" });
 // already ships jq (JQ_PATH); call that binary instead.
 const jqBinary = () => process.env.JQ_PATH ?? "jq";
 
-const runJq = (query: string, data: unknown): Promise<unknown> =>
+const runJq = (query: string, input: Buffer): Promise<unknown> =>
   new Promise((resolve, reject) => {
     // node-jq spawned jq with an empty environment. The program comes from a
     // request header, so inheriting this process's environment would let a
@@ -50,21 +50,37 @@ const runJq = (query: string, data: unknown): Promise<unknown> =>
         resolve(text);
       }
     });
-    child.stdin.end(JSON.stringify(data));
+    child.stdin.end(input);
   });
 
-// Throws when the filter cannot be applied, so the caller never gets a body it
-// did not ask for. The client turns the error into a 502 response.
-export const jqTransform = async (
-  data: any,
+export const jqProgram = (
   jqHeader: string | string[] | undefined
-): Promise<any> => {
-  const query = isArray(jqHeader) ? jqHeader[0] : jqHeader;
-  if (!query) return data;
+): string | undefined =>
+  (isArray(jqHeader) ? jqHeader[0] : jqHeader) || undefined;
+
+// Throws when the filter cannot be applied, so the caller never gets a body it
+// did not ask for. The client turns the error into a 502 response. `body` is
+// the raw response body: jq parses it itself, so it is not parsed or
+// serialized here.
+export const jqTransform = async (
+  body: Buffer,
+  query: string
+): Promise<unknown> => {
   try {
-    return await runJq(query, data);
+    return await runJq(query, body);
   } catch (error: any) {
     logger.error({ error, jpSelectQuery: query }, "Error running jq query");
     throw error;
+  }
+};
+
+// Mirrors axios's default response handling for a body that was fetched raw:
+// JSON when it parses, the text otherwise.
+export const parseBody = (body: Buffer): unknown => {
+  const text = body.toString("utf-8");
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
 };
