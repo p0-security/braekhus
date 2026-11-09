@@ -1,10 +1,19 @@
 import type { Server } from "node:http";
 import { createServer } from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
 import { JQ_FILTER_FAILED_ERROR, JQ_HEADER } from "../../types/index.ts";
+import { JQ_INPUT_LIMIT_MODE_ENV, JQ_MAX_INPUT_BYTES_ENV } from "../filter.ts";
 import { JsonRpcClient } from "../index.ts";
 
 const WS_PORT = 18098;
@@ -49,6 +58,11 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
       if (req.url === "/text-error") {
         res.writeHead(500, { "content-type": "text/plain" });
         res.end("upstream exploded");
+        return;
+      }
+      if (req.url === "/big") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ items: "x".repeat(10_000) }));
         return;
       }
       const forbidden = req.url === "/forbidden";
@@ -132,6 +146,44 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
     expect(reply.result).toMatchObject({
       status: 500,
       data: "upstream exploded",
+    });
+  });
+
+  describe("input limit", () => {
+    beforeEach(() => {
+      process.env[JQ_MAX_INPUT_BYTES_ENV] = "1000";
+    });
+    afterEach(() => {
+      delete process.env[JQ_MAX_INPUT_BYTES_ENV];
+      delete process.env[JQ_INPUT_LIMIT_MODE_ENV];
+    });
+
+    it("answers 502 when the response is larger than the limit", async () => {
+      // `jq .` would succeed on this body, so only the limit can fail it
+      const reply = await call("/big", ".");
+
+      expect(reply.error).toBeUndefined();
+      expect(reply.result).toMatchObject({
+        status: 502,
+        data: {
+          error: JQ_FILTER_FAILED_ERROR,
+          message: expect.stringContaining("maxContentLength size of 1000"),
+        },
+      });
+    });
+
+    it("filters a response over the limit when the mode is warn", async () => {
+      process.env[JQ_INPUT_LIMIT_MODE_ENV] = "warn";
+
+      const reply = await call("/big", ".items | length");
+
+      expect(reply.result).toMatchObject({ status: 200, data: 10_000 });
+    });
+
+    it("does not apply the limit without a filter", async () => {
+      const reply = await call("/big");
+
+      expect(reply.result).toMatchObject({ status: 200 });
     });
   });
 });

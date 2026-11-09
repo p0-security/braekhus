@@ -10,6 +10,56 @@ const logger = createLogger({ name: "filter" });
 // already ships jq (JQ_PATH); call that binary instead.
 const jqBinary = () => process.env.JQ_PATH ?? "jq";
 
+export const JQ_MAX_INPUT_BYTES_ENV = "BRAEKHUS_JQ_MAX_INPUT_BYTES";
+export const JQ_INPUT_LIMIT_MODE_ENV = "BRAEKHUS_JQ_INPUT_LIMIT_MODE";
+
+export type JqInputLimit = {
+  // Undefined means no limit.
+  maxBytes: number | undefined;
+  // When false, a body over maxBytes is logged and processed anyway.
+  enforce: boolean;
+};
+
+// The limit is read on every request, so a misconfigured value would be
+// reported on every request too. Each bad value is reported once instead.
+const reported = new Set<string>();
+const warnOnce = (name: string, value: string, message: string) => {
+  const key = `${name}=${value}`;
+  if (reported.has(key)) return;
+  reported.add(key);
+  logger.warn({ value }, message);
+};
+
+// There is no limit unless one is configured, so a client behaves as it did
+// before the limit existed. The limit applies to the jq input only, since the
+// filter is there to shrink the response.
+export const jqInputLimit = (): JqInputLimit => {
+  const mode = process.env[JQ_INPUT_LIMIT_MODE_ENV];
+  const knownMode =
+    mode === undefined || mode === "" || mode === "enforce" || mode === "warn";
+  if (!knownMode) {
+    warnOnce(
+      JQ_INPUT_LIMIT_MODE_ENV,
+      mode,
+      `${JQ_INPUT_LIMIT_MODE_ENV} is not "enforce" or "warn", using "warn"`
+    );
+  }
+  const enforce = knownMode && mode !== "warn";
+  const value = process.env[JQ_MAX_INPUT_BYTES_ENV];
+  if (value === undefined || value === "")
+    return { maxBytes: undefined, enforce };
+  const bytes = Number(value);
+  if (!Number.isSafeInteger(bytes) || bytes <= 0) {
+    warnOnce(
+      JQ_MAX_INPUT_BYTES_ENV,
+      value,
+      `${JQ_MAX_INPUT_BYTES_ENV} is not a positive integer, ignoring it`
+    );
+    return { maxBytes: undefined, enforce };
+  }
+  return { maxBytes: bytes, enforce };
+};
+
 const runJq = (query: string, input: Buffer): Promise<unknown> =>
   new Promise((resolve, reject) => {
     // node-jq spawned jq with an empty environment. The program comes from a
@@ -67,6 +117,15 @@ export const jqTransform = async (
   query: string
 ): Promise<unknown> => {
   try {
+    const { maxBytes, enforce } = jqInputLimit();
+    if (maxBytes !== undefined && body.length > maxBytes) {
+      const message = `Response of ${body.length} bytes is larger than the jq input limit of ${maxBytes} bytes`;
+      if (enforce) throw new Error(message);
+      logger.warn(
+        { bytes: body.length, maxBytes, jpSelectQuery: query },
+        `${message}; running jq anyway because ${JQ_INPUT_LIMIT_MODE_ENV} is "warn"`
+      );
+    }
     return await runJq(query, body);
   } catch (error: any) {
     logger.error({ error, jpSelectQuery: query }, "Error running jq query");
