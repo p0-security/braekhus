@@ -17,7 +17,7 @@ import type { ForwardedRequest, ForwardedResponse } from "../types/index.ts";
 import { JQ_FILTER_FAILED_ERROR, JQ_HEADER } from "../types/index.ts";
 import { deferral } from "../util/deferral.ts";
 import { Backoff } from "./backoff.ts";
-import { jqTransform } from "./filter.ts";
+import { jqProgram, jqTransform, parseBody } from "./filter.ts";
 import { jwt } from "./jwks.ts";
 
 const PING_TIMEOUT_MS = 30000;
@@ -179,6 +179,7 @@ export class JsonRpcClient {
       // 1. The Content-Length header may not be accurate for the forwarded request. By removing it, axios can recalculate the correct length.
       // 2. The Host header should be switched out to the host this client is targeting.
       // 3. The jq header is an instruction to this client, not to the target.
+      const jqQuery = jqProgram(request.headers[JQ_HEADER]);
       const response = await axios({
         baseURL: this.#targetUrl,
         url: request.path,
@@ -193,22 +194,27 @@ export class JsonRpcClient {
         timeout:
           request.options?.timeoutMillis ||
           DEFAULT_FORWARDED_REQUEST_TIMEOUT_MILLIS,
+        // jq parses the body itself, so a filtered response is fetched raw
+        // instead of being parsed here and serialized again.
+        ...(jqQuery && { responseType: "arraybuffer" as const }),
       });
       // The filter shapes a successful response. Error bodies, such as a
       // Kubernetes Status object, usually do not have the shape the filter
       // expects, and the caller needs them unchanged to tell target errors
       // from proxy errors.
       const isSuccess = response.status >= 200 && response.status < 300;
-      const jpSelectHeader = request.headers[JQ_HEADER];
       let forwardedResponse: ForwardedResponse;
       try {
+        const data = !jqQuery
+          ? response.data
+          : isSuccess
+            ? await jqTransform(response.data, jqQuery)
+            : parseBody(response.data);
         forwardedResponse = {
           headers: response.headers,
           status: response.status,
           statusText: response.statusText,
-          data: isSuccess
-            ? await jqTransform(response.data, jpSelectHeader)
-            : response.data,
+          data,
         };
       } catch (error: any) {
         // Return a 502 instead of throwing: the server retries every thrown

@@ -25,7 +25,7 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
   let ws: WebSocket;
   let nextId = 1;
 
-  const call = async (path: string, filter: string) => {
+  const call = async (path: string, filter?: string) => {
     const id = nextId++;
     const reply = nextMessage(ws);
     ws.send(
@@ -34,7 +34,7 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
         id,
         method: "call",
         params: {
-          headers: { [JQ_HEADER]: filter },
+          headers: filter === undefined ? {} : { [JQ_HEADER]: filter },
           method: "GET",
           path,
           params: {},
@@ -46,6 +46,11 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
 
   beforeAll(async () => {
     target = createServer((req, res) => {
+      if (req.url === "/text-error") {
+        res.writeHead(500, { "content-type": "text/plain" });
+        res.end("upstream exploded");
+        return;
+      }
       const forbidden = req.url === "/forbidden";
       res.writeHead(forbidden ? 403 : 200, {
         "content-type": "application/json",
@@ -113,5 +118,20 @@ describe("JsonRpcClient applying the jq filter to forwarded responses", () => {
     });
     // The unfiltered body must not leak into the response
     expect(JSON.stringify(reply.result)).not.toContain('"extra"');
+  });
+
+  it("returns a response unchanged when there is no filter", async () => {
+    const reply = await call("/list");
+
+    expect(reply.result).toMatchObject({ status: 200, data: LIST });
+  });
+
+  it("returns a non-JSON error body as text when there is a filter", async () => {
+    const reply = await call("/text-error", ".items");
+
+    expect(reply.result).toMatchObject({
+      status: 500,
+      data: "upstream exploded",
+    });
   });
 });
