@@ -13,6 +13,17 @@ const makeDir = async () => {
   return dir;
 };
 
+const mockRoot = () => {
+  vi.spyOn(process, "getuid").mockReturnValue(0);
+  return {
+    setgroups: vi.spyOn(process, "setgroups").mockReturnValue(undefined),
+    setgid: vi.spyOn(process, "setgid").mockReturnValue(undefined),
+    setuid: vi.spyOn(process, "setuid").mockReturnValue(undefined),
+  };
+};
+
+const refusal = (code: string) => Object.assign(new Error(code), { code });
+
 describe("dropRootAfterKeyHandoff", () => {
   afterEach(async () => {
     vi.restoreAllMocks();
@@ -31,13 +42,7 @@ describe("dropRootAfterKeyHandoff", () => {
   });
 
   it("chowns the directory and its files before dropping root", async () => {
-    vi.spyOn(process, "getuid").mockReturnValue(0);
-    const setgid = vi
-      .spyOn(process, "setgid")
-      .mockImplementation(() => undefined);
-    const setuid = vi
-      .spyOn(process, "setuid")
-      .mockImplementation(() => undefined);
+    const { setgroups, setgid, setuid } = mockRoot();
     const chown = vi.spyOn(fs, "chown").mockResolvedValue(undefined);
     const lchown = vi.spyOn(fs, "lchown").mockResolvedValue(undefined);
     const dir = await makeDir();
@@ -64,22 +69,66 @@ describe("dropRootAfterKeyHandoff", () => {
     );
     expect(chown).not.toHaveBeenCalledWith(outside, 65532, 65532);
     expect(lchown).toHaveBeenCalledWith(path.join(dir, "link"), 65532, 65532);
+    expect(setgroups).toHaveBeenCalledWith([65532]);
     expect(setgid).toHaveBeenCalledWith(65532);
     expect(setuid).toHaveBeenCalledWith(65532);
     const lastChown =
       chown.mock.invocationCallOrder[chown.mock.invocationCallOrder.length - 1];
-    expect(lastChown).toBeLessThan(setgid.mock.invocationCallOrder[0]);
+    expect(lastChown).toBeLessThan(setgroups.mock.invocationCallOrder[0]);
+    expect(setgroups.mock.invocationCallOrder[0]).toBeLessThan(
+      setgid.mock.invocationCallOrder[0]
+    );
     expect(setgid.mock.invocationCallOrder[0]).toBeLessThan(
       setuid.mock.invocationCallOrder[0]
     );
   });
 
-  it("does not drop root when the key directory cannot be handed off", async () => {
-    vi.spyOn(process, "getuid").mockReturnValue(0);
-    const setuid = vi.spyOn(process, "setuid");
-    const missing = path.join(os.tmpdir(), "braekhus-drop-missing");
+  // EROFS is a read-only Secret mount. EPERM is a container with no CAP_CHOWN.
+  it.each(["EROFS", "EPERM"])(
+    "stays root when chown is refused with %s",
+    async (code) => {
+      const { setgroups, setgid, setuid } = mockRoot();
+      vi.spyOn(fs, "chown").mockRejectedValue(refusal(code));
+      const dir = await makeDir();
 
-    await expect(dropRootAfterKeyHandoff(missing)).rejects.toThrow();
+      await expect(dropRootAfterKeyHandoff(dir)).resolves.toBe(false);
+      expect(setgroups).not.toHaveBeenCalled();
+      expect(setgid).not.toHaveBeenCalled();
+      expect(setuid).not.toHaveBeenCalled();
+    }
+  );
+
+  it("stays root when the drop itself is refused", async () => {
+    const { setgroups, setuid } = mockRoot();
+    vi.spyOn(fs, "chown").mockResolvedValue(undefined);
+    setgroups.mockImplementation(() => {
+      throw refusal("EPERM");
+    });
+    const dir = await makeDir();
+
+    await expect(dropRootAfterKeyHandoff(dir)).resolves.toBe(false);
+    expect(setuid).not.toHaveBeenCalled();
+  });
+
+  it("stays root when the key directory is missing", async () => {
+    const { setuid } = mockRoot();
+    const chown = vi.spyOn(fs, "chown").mockResolvedValue(undefined);
+    const missing = path.join(await makeDir(), "missing");
+
+    await expect(dropRootAfterKeyHandoff(missing)).resolves.toBe(false);
+    expect(chown).not.toHaveBeenCalled();
+    expect(setuid).not.toHaveBeenCalled();
+  });
+
+  it("does not chown through a symlinked key path", async () => {
+    const { setuid } = mockRoot();
+    const chown = vi.spyOn(fs, "chown").mockResolvedValue(undefined);
+    const target = await makeDir();
+    const link = path.join(await makeDir(), "link");
+    await fs.symlink(target, link);
+
+    await expect(dropRootAfterKeyHandoff(link)).resolves.toBe(false);
+    expect(chown).not.toHaveBeenCalled();
     expect(setuid).not.toHaveBeenCalled();
   });
 });
