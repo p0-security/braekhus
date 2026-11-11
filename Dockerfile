@@ -67,12 +67,12 @@ RUN curl -fsSLo /usr/local/bin/jq \
 # production node_modules plus the compiled dist, instead of reinstalling.
 FROM ${RUN_BASE} AS run
 
-# The base defaults to uid 65532, but the published image has always
-# run as root and customer deployments depend on it: the Kubernetes manifest
-# mounts /p0-files from a PersistentVolumeClaim with no fsGroup, and the client
-# stores its private key there as root with mode 0400. A non-root process could
-# neither read an existing key nor create one, so moving off root is a
-# coordinated manifest change, not something :latest can do on its own.
+# The base defaults to uid 65532. This image still starts as root: customer
+# volumes have no fsGroup, and an existing private key is root mode 0400.
+# The client chowns that directory and then setuids to 65532, so the tunnel
+# process is not root. USER stays 0 so a pod pulling :latest can still open
+# that key. An image that starts as 65532 is a separate manifest, pinned by
+# digest, and is not what :latest points at.
 USER 0
 WORKDIR /usr/src/app
 COPY --from=build /usr/src/app ./

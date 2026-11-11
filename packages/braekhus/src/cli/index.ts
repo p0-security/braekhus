@@ -7,6 +7,7 @@ import { JsonRpcClient } from "../client/index.ts";
 import { createLogger } from "../log/index.ts";
 import { runApp } from "../server/index.ts";
 import { ensureKey } from "../server/key-cache.ts";
+import { dropRootAfterKeyHandoff } from "./drop-root.ts";
 
 const logger = createLogger({ name: "cli" });
 
@@ -93,6 +94,10 @@ void yargs(hideBin(process.argv))
         tunnelPort: port,
         insecure,
       } = args;
+      // Drop before the client reads the key. A root-owned mode 0400 file is
+      // unreadable once the process is uid 65532.
+      const droppedRoot = await dropRootAfterKeyHandoff(jwkPath);
+      if (droppedRoot) logger.info({ uid: process.getuid?.() }, "Dropped root");
       const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
       const client = new JsonRpcClient(
         { targetUrl, clientId, jwkPath },
