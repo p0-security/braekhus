@@ -3,6 +3,8 @@ import type { ParamsDictionary, Query } from "express-serve-static-core";
 import type { IncomingHttpHeaders } from "node:http";
 
 export const JQ_HEADER = "braekhus-response-jq-transform";
+// `error` value in the body of the 502 the client returns when the jq filter cannot be applied.
+export const JQ_FILTER_FAILED_ERROR = "jq_filter_failed";
 
 export type IncomingRequest = Request<
   ParamsDictionary,

@@ -53,6 +53,8 @@ const runJq = (query: string, data: unknown): Promise<unknown> =>
     child.stdin.end(JSON.stringify(data));
   });
 
+// Throws when the filter cannot be applied, so the caller never gets a body it
+// did not ask for. The client turns the error into a 502 response.
 export const jqTransform = async (
   data: any,
   jqHeader: string | string[] | undefined
@@ -62,10 +64,7 @@ export const jqTransform = async (
   try {
     return await runJq(query, data);
   } catch (error: any) {
-    logger.error(
-      { error, jpSelectQuery: query },
-      "Error running jq query, ignoring filters"
-    );
-    return data;
+    logger.error({ error, jpSelectQuery: query }, "Error running jq query");
+    throw error;
   }
 };
