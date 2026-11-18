@@ -3,6 +3,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { Backoff } from "../client/backoff.ts";
+import { startHealthServer } from "../client/health.ts";
 import { JsonRpcClient } from "../client/index.ts";
 import { createLogger } from "../log/index.ts";
 import { runApp } from "../server/index.ts";
@@ -84,6 +85,12 @@ void yargs(hideBin(process.argv))
           type: "boolean",
           alias: "k",
           describe: "If true, skips SSL",
+        })
+        .option("healthPort", {
+          type: "number",
+          demandOption: false,
+          describe:
+            "If set, serves /live and /ready health checks on this port. /ready succeeds only while the tunnel is connected",
         }),
     async (args) => {
       const {
@@ -93,6 +100,7 @@ void yargs(hideBin(process.argv))
         tunnelHost: host,
         tunnelPort: port,
         insecure,
+        healthPort,
       } = args;
       // Drop before the client reads the key. A root-owned mode 0400 file is
       // unreadable once the process is uid 65532.
@@ -103,6 +111,9 @@ void yargs(hideBin(process.argv))
         { targetUrl, clientId, jwkPath },
         { host, port, insecure, backoff }
       );
+      if (healthPort !== undefined) {
+        startHealthServer(healthPort, () => client.isConnected());
+      }
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
     }

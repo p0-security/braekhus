@@ -239,6 +239,10 @@ export class JsonRpcClient {
     await this.#connected.promise;
   }
 
+  isConnected() {
+    return this.#connected.isResolved();
+  }
+
   shutdown() {
     this.#isShutdown = true;
     clearTimeout(this.#retryTimeout);
