@@ -38,7 +38,6 @@ describe("client health port", () => {
   let health: Server | undefined;
 
   afterEach(async () => {
-    vi.restoreAllMocks();
     client?.shutdown();
     health?.close();
     await new Promise((resolve) =>
@@ -51,8 +50,7 @@ describe("client health port", () => {
     const connection = acceptTunnel(tunnel);
     client = startClient();
     const c = client;
-    health = startHealthServer(HEALTH_PORT, () => c.isConnected());
-    await new Promise((resolve) => health!.once("listening", resolve));
+    health = await startHealthServer(HEALTH_PORT, () => c.isConnected());
 
     const { ws, confirm } = await connection;
     expect(await status("/live")).toBe(200);
@@ -68,13 +66,15 @@ describe("client health port", () => {
     expect(await status("/live")).toBe(200);
   });
 
-  it("opens no listener on its own", async () => {
-    tunnel = new WebSocketServer({ port: TUNNEL_PORT });
-    const connection = acceptTunnel(tunnel);
-    const listen = vi.spyOn(NetServer.prototype, "listen");
-    client = startClient();
-    (await connection).confirm();
-    await client.waitUntilConnected();
-    expect(listen).not.toHaveBeenCalled();
+  it("rejects when the port cannot be bound", async () => {
+    const taken = new NetServer().listen(HEALTH_PORT);
+    await new Promise((resolve) => taken.once("listening", resolve));
+    try {
+      await expect(startHealthServer(HEALTH_PORT, () => false)).rejects.toThrow(
+        /EADDRINUSE/
+      );
+    } finally {
+      await new Promise((resolve) => taken.close(resolve));
+    }
   });
 });

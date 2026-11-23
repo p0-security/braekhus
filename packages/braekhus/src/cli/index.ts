@@ -107,13 +107,21 @@ void yargs(hideBin(process.argv))
       const droppedRoot = await dropRootAfterKeyHandoff(jwkPath);
       if (droppedRoot) logger.info({ uid: process.getuid?.() }, "Dropped root");
       const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
-      const client = new JsonRpcClient(
+      let client: JsonRpcClient | undefined;
+      if (healthPort !== undefined) {
+        // Bind before the tunnel opens, so a bad port stops the client at startup
+        await startHealthServer(
+          healthPort,
+          () => client?.isConnected() ?? false
+        ).catch((error) => {
+          logger.error({ error }, "Could not start health service");
+          process.exit(1);
+        });
+      }
+      client = new JsonRpcClient(
         { targetUrl, clientId, jwkPath },
         { host, port, insecure, backoff }
       );
-      if (healthPort !== undefined) {
-        startHealthServer(healthPort, () => client.isConnected());
-      }
       logger.info({ args }, "Running JSON-RPC client");
       await client.run();
     }
