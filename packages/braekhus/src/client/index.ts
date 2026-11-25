@@ -22,6 +22,8 @@ import { jwt } from "./jwks.ts";
 
 const PING_TIMEOUT_MS = 30000;
 
+const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
+
 /**
  * Bi-directional JSON RPC client
  */
@@ -188,7 +190,11 @@ export class JsonRpcClient {
           host: this.#targetHostName,
         },
         params: request.params,
-        data: request.data,
+        // The server forwards `{}` even for a request that had no body, and
+        // Google's front end rejects a GET that carries one.
+        data: BODYLESS_METHODS.has(request.method.toUpperCase())
+          ? undefined
+          : request.data,
         validateStatus: () => true, // do not throw, we return all status codes
         timeout:
           request.options?.timeoutMillis ||
