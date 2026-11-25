@@ -3,6 +3,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { Backoff } from "../client/backoff.ts";
+import { startHealthServer } from "../client/health.ts";
 import { JsonRpcClient } from "../client/index.ts";
 import { createLogger } from "../log/index.ts";
 import { runApp } from "../server/index.ts";
@@ -84,6 +85,12 @@ void yargs(hideBin(process.argv))
           type: "boolean",
           alias: "k",
           describe: "If true, skips SSL",
+        })
+        .option("healthPort", {
+          type: "number",
+          demandOption: false,
+          describe:
+            "If set, serves /live and /ready health checks on this port. /ready succeeds only while the tunnel is connected",
         }),
     async (args) => {
       const {
@@ -93,13 +100,25 @@ void yargs(hideBin(process.argv))
         tunnelHost: host,
         tunnelPort: port,
         insecure,
+        healthPort,
       } = args;
       // Drop before the client reads the key. A root-owned mode 0400 file is
       // unreadable once the process is uid 65532.
       const droppedRoot = await dropRootAfterKeyHandoff(jwkPath);
       if (droppedRoot) logger.info({ uid: process.getuid?.() }, "Dropped root");
       const backoff = new Backoff(1, 3000); // Aggressively retry starting at 1ms delay
-      const client = new JsonRpcClient(
+      let client: JsonRpcClient | undefined;
+      if (healthPort !== undefined) {
+        // Bind before the tunnel opens, so a bad port stops the client at startup
+        await startHealthServer(
+          healthPort,
+          () => client?.isConnected() ?? false
+        ).catch((error) => {
+          logger.error({ error }, "Could not start health service");
+          process.exit(1);
+        });
+      }
+      client = new JsonRpcClient(
         { targetUrl, clientId, jwkPath },
         { host, port, insecure, backoff }
       );
